@@ -2,20 +2,16 @@
 //! record files from the hiero-mirror-node repo and the address book
 //! that actually signed them (test-v6-sidecar-4n.bin, nodes 0.0.3–6).
 
+mod common;
+use common::fixture;
 use hiero_streams::{
     parse_address_book, parse_signature_file, record_file_hash, verify_node_signature,
     verify_record_file, NodeSignature,
 };
-use std::fs;
-use std::path::Path;
 
 const RCD: &str = "v6/2022-07-13T08_46_11.304284003Z.rcd.gz";
 const SIG: &str = "v6/2022-07-13T08_46_11.304284003Z.rcd_sig";
 const BOOK: &str = "test-v6-sidecar-4n.bin";
-
-fn fixture(name: &str) -> Vec<u8> {
-    fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("tests/fixtures/{name}"))).unwrap()
-}
 
 #[test]
 fn parses_a_real_signature_file() {
@@ -100,4 +96,71 @@ fn tampered_record_file_fails_verification() {
     .unwrap();
     assert!(result.valid.is_empty());
     assert_eq!(result.invalid, ["0.0.3"]);
+}
+
+// ── metadata + chain (phase-5 roadmap) ─────────────────────────────
+
+const RCD_PREV: &str = "v6/2022-07-13T08_46_08.041986003Z.rcd.gz";
+
+#[test]
+fn metadata_hash_matches_the_signing_nodes_claim() {
+    let computed = hiero_streams::record_file_metadata_hash(&fixture(RCD)).unwrap();
+    let claimed = parse_signature_file(&fixture(SIG))
+        .unwrap()
+        .metadata_hash
+        .unwrap();
+    assert_eq!(&computed[..], &claimed[..]);
+}
+
+#[test]
+fn metadata_signature_verifies_with_the_signing_key() {
+    let book = parse_address_book(&fixture(BOOK)).unwrap();
+    assert!(
+        hiero_streams::verify_metadata_signature(&fixture(RCD), &fixture(SIG), &book["0.0.3"])
+            .unwrap()
+    );
+    assert!(!hiero_streams::verify_metadata_signature(
+        &fixture(RCD),
+        &fixture(SIG),
+        &book["0.0.4"]
+    )
+    .unwrap());
+}
+
+#[test]
+fn consecutive_fixtures_form_a_valid_running_hash_chain() {
+    let a = hiero_streams::parse_record_file(&fixture(RCD_PREV)).unwrap();
+    let b = hiero_streams::parse_record_file(&fixture(RCD)).unwrap();
+    assert_eq!(a.block_number + 1, b.block_number);
+    hiero_streams::verify_running_hash_chain(&[a, b]).unwrap();
+}
+
+#[test]
+fn chain_breaks_are_detected_and_located() {
+    let a = hiero_streams::parse_record_file(&fixture(RCD_PREV)).unwrap();
+    let mut b = hiero_streams::parse_record_file(&fixture(RCD)).unwrap();
+    b.start_running_hash[0] ^= 0xff;
+    let err = hiero_streams::verify_running_hash_chain(&[a.clone(), b]).unwrap_err();
+    assert_eq!(err.index, 1);
+    assert!(err.reason.contains("running hash"));
+
+    let mut c = hiero_streams::parse_record_file(&fixture(RCD)).unwrap();
+    c.block_number += 5; // gap
+    let err = hiero_streams::verify_running_hash_chain(&[a, c]).unwrap_err();
+    assert!(err.reason.contains("block number gap"));
+}
+
+#[test]
+fn detect_format_identifies_v6_and_unknowns() {
+    use hiero_streams::Format;
+    assert_eq!(
+        hiero_streams::detect_format(&fixture(RCD)).unwrap(),
+        Format::RecordFileV6
+    );
+    let mut bogus = vec![0u8; 8];
+    bogus[3] = 7;
+    assert_eq!(
+        hiero_streams::detect_format(&bogus).unwrap(),
+        Format::Unknown(7)
+    );
 }

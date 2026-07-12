@@ -1,0 +1,45 @@
+[package]
+name = "hiero-streams-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+hiero-streams = { path = "..", default-features = false, features = ["block-proofs"] }
+
+# detached from the parent workspace (cargo-fuzz convention)
+[workspace]
+
+[[bin]]
+name = "parse_record"
+path = "fuzz_targets/parse_record.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "parse_block"
+path = "fuzz_targets/parse_block.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "parse_signature"
+path = "fuzz_targets/parse_signature.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "address_book"
+path = "fuzz_targets/address_book.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "parse_proof"
+path = "fuzz_targets/parse_proof.rs"
+test = false
+doc = false
