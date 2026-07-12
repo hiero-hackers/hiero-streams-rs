@@ -1,0 +1,247 @@
+{
+ "file": "2026-07-04T00_03_20.845066000Z.rcd.gz",
+ "window": [
+  "1783123400.845066000",
+  "1783123401.575607000"
+ ],
+ "source": "https://mainnet.mirrornode.hedera.com",
+ "transactions": [
+  {
+   "consensus_timestamp": "1783123400.845066000",
+   "name": "CRYPTOTRANSFER",
+   "result": "SUCCESS",
+   "charged_tx_fee": 136143,
+   "transaction_id": "0.0.3229-1783123389-884000926",
+   "transfers": [
+    {
+     "account": "0.0.802",
+     "amount": 136143
+    },
+    {
+     "account": "0.0.3229",
+     "amount": -136144
+    },
+    {
+     "account": "0.0.3230",
+     "amount": 1
+    }
+   ],
+   "token_transfers": []
+  },
+  {
+   "consensus_timestamp": "1783123401.036895000",
+   "name": "CRYPTOTRANSFER",
+   "result": "SUCCESS",
+   "charged_tx_fee": 136143,
+   "transaction_id": "0.0.3229-1783123390-637000619",
+   "transfers": [
+    {
+     "account": "0.0.802",
+     "amount": 136143
+    },
+    {
+     "account": "0.0.3229",
+     "amount": -136144
+    },
+    {
+     "account": "0.0.3230",
+     "amount": 1
+    }
+   ],
+   "token_transfers": []
+  },
+  {
+   "consensus_timestamp": "1783123401.533541000",
+   "name": "CONTRACTCALL",
+   "result": "SUCCESS",
+   "charged_tx_fee": 21983285,
+   "transaction_id": "0.0.10573597-1783123382-021065607",
+   "transfers": [
+    {
+     "account": "0.0.800",
+     "amount": -68480
+    },
+    {
+     "account": "0.0.802",
+     "amount": 21983285
+    },
+    {
+     "account": "0.0.1058134",
+     "amount": 407462910
+    },
+    {
+     "account": "0.0.1077627",
+     "amount": -322
+    },
+    {
+     "account": "0.0.1462981",
+     "amount": 68480
+    },
+    {
+     "account": "0.0.10573597",
+     "amount": -429445873
+    }
+   ],
+   "token_transfers": []
+  },
+  {
+   "consensus_timestamp": "1783123401.533541001",
+   "name": "CONTRACTCALL",
+   "result": "SUCCESS",
+   "charged_tx_fee": 0,
+   "transaction_id": "0.0.10573597-1783123382-021065607",
+   "transfers": [],
+   "token_transfers": []
+  },
+  {
+   "consensus_timestamp": "1783123401.533541002",
+   "name": "TOKENMINT",
+   "result": "SUCCESS",
+   "charged_tx_fee": 0,
+   "transaction_id": "0.0.10573597-1783123382-021065607",
+   "transfers": [],
+   "token_transfers": [
+    {
+     "token": "0.0.731861",
+     "account": "0.0.1077627",
+     "amount": 1181217986
+    }
+   ]
+  },
+  {
+   "consensus_timestamp": "1783123401.533541003",
+   "name": "CRYPTOTRANSFER",
+   "result": "SUCCESS",
+   "charged_tx_fee": 0,
+   "transaction_id": "0.0.10573597-1783123382-021065607",
+   "transfers": [],
+   "token_transfers": [
+    {
+     "token": "0.0.731861",
+     "account": "0.0.1077627",
+     "amount": -107383453
+    },
+    {
+     "token": "0.0.731861",
+     "account": "0.0.1462981",
+     "amount": 107383453
+    }
+   ]
+  },
+  {
+   "consensus_timestamp": "1783123401.533541004",
+   "name": "CONTRACTCALL",
+   "result": "SUCCESS",
+   "charged_tx_fee": 0,
+   "transaction_id": "0.0.10573597-1783123382-021065607",
+   "transfers": [],
+   "token_transfers": []
+  },
+  {
+   "consensus_timestamp": "1783123401.533541005",
+   "name": "CRYPTOTRANSFER",
+   "result": "SUCCESS",
+   "charged_tx_fee": 0,
+   "transaction_id": "0.0.10573597-1783123382-021065607",
+   "transfers": [],
+   "token_transfers": [
+    {
+     "token": "0.0.731861",
+     "account": "0.0.1077627",
+     "amount": -681467408
+    },
+    {
+     "token": "0.0.731861",
+     "account": "0.0.10573597",
+     "amount": 681467408
+    }
+   ]
+  },
+  {
+   "consensus_timestamp": "1783123401.533541006",
+   "name": "CRYPTOTRANSFER",
+   "result": "SUCCESS",
+   "charged_tx_fee": 0,
+   "transaction_id": "0.0.10573597-1783123382-021065607",
+   "transfers": [],
+   "token_transfers": [
+    {
+     "token": "0.0.10493785",
+     "account": "0.0.1077627",
+     "amount": 5193775351
+    },
+    {
+     "token": "0.0.10493785",
+     "account": "0.0.10573597",
+     "amount": -5193775351
+    }
+   ]
+  },
+  {
+   "consensus_timestamp": "1783123401.539478000",
+   "name": "CRYPTOTRANSFER",
+   "result": "SUCCESS",
+   "charged_tx_fee": 136143,
+   "transaction_id": "0.0.3229-1783123390-910000590",
+   "transfers": [
+    {
+     "account": "0.0.802",
+     "amount": 136143
+    },
+    {
+     "account": "0.0.3229",
+     "amount": -136144
+    },
+    {
+     "account": "0.0.3230",
+     "amount": 1
+    }
+   ],
+   "token_transfers": []
+  },
+  {
+   "consensus_timestamp": "1783123401.556474120",
+   "name": "CRYPTOTRANSFER",
+   "result": "SUCCESS",
+   "charged_tx_fee": 136143,
+   "transaction_id": "0.0.10231006-1783123397-405523875",
+   "transfers": [
+    {
+     "account": "0.0.802",
+     "amount": 136143
+    },
+    {
+     "account": "0.0.1303586",
+     "amount": 1
+    },
+    {
+     "account": "0.0.10231006",
+     "amount": -136144
+    }
+   ],
+   "token_transfers": []
+  },
+  {
+   "consensus_timestamp": "1783123401.575607000",
+   "name": "CRYPTOTRANSFER",
+   "result": "SUCCESS",
+   "charged_tx_fee": 136143,
+   "transaction_id": "0.0.10231006-1783123396-613641365",
+   "transfers": [
+    {
+     "account": "0.0.800",
+     "amount": 1
+    },
+    {
+     "account": "0.0.802",
+     "amount": 136143
+    },
+    {
+     "account": "0.0.10231006",
+     "amount": -136144
+    }
+   ],
+   "token_transfers": []
+  }
+ ]
+}

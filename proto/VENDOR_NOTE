@@ -1,0 +1,12 @@
+Vendored from the npm package @hashgraph/proto@2.25.0 (Hedera's published
+HAPI protobuf definitions), flattened into this single directory with
+path-derived names (services/basic_types.proto -> services_basic_types.proto).
+
+Pinned to a published package version so parsing never silently drifts from
+the definitions it was validated against. The block-era protos live
+separately in ../proto-hapi/ (vendored from hiero-consensus-node; see
+../proto-hapi/VENDOR_COMMIT).
+
+Updates are deliberate, reviewed events: bump the package version here,
+re-extract, and re-run the full test suite (snapshots, mirror differential,
+signature verification).
