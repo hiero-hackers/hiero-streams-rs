@@ -36,7 +36,7 @@ features = ["block-proofs"]
 doctest = false
 
 [dependencies]
-prost = "0.13"
+prost = "0.14"
 # Default miniz_oxide backend kept deliberately: the zlib-rs and zlib-ng
 # backends were benchmarked and gave no throughput gain on these small
 # (~4 KB) per-second files, where inflate setup dominates — not worth
