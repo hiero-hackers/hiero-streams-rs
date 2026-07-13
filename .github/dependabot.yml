@@ -1,32 +1,107 @@
 version: 2
+
+# Dependency policy. Two jobs here: (1) collapse routine minor/patch churn
+# into a few grouped PRs instead of one-per-crate, and (2) hold the crates
+# whose *version is load-bearing* at their pinned line, so Dependabot never
+# proposes a bump that would silently break correctness. The reasons live
+# next to each rule.
+#
+# Semver note for 0.x crates: Dependabot calls 0.4 -> 0.6 a *minor* update
+# (the major stays 0), so the arkworks / prost / sha2 pins below must ignore
+# `semver-minor`, not just `semver-major`. Patch bumps (0.4.2 -> 0.4.3) stay
+# allowed — those are the security fixes we want.
 updates:
-    # Root Cargo workspace (library, CLI, and the Node binding crate,
-    # which is a workspace member).
+    # ── Root Cargo workspace: library, CLI, and the Node binding crate ──
     - package-ecosystem: cargo
       directory: "/"
       schedule:
           interval: weekly
       open-pull-requests-limit: 5
+      groups:
+          cargo-minor:
+              patterns: ["*"]
+              update-types: ["minor", "patch"]
+      ignore:
+          # arkworks is PINNED to 0.4 on purpose. The consensus node's
+          # Fiat-Shamir transcript depends on ark-ff 0.4's *non-RFC*
+          # expand_message_xmd, and the proof wire format IS arkworks 0.4
+          # CanonicalSerialize. 0.5+ makes expand_message_xmd RFC-compliant,
+          # which silently breaks byte-exact proof verification. See the
+          # block-proofs deps in Cargo.toml and ROADMAP.md §1. 0.4.x patches
+          # stay allowed; the 0.x-minor bump to 0.5/0.6 never happens.
+          - dependency-name: "ark-*"
+            update-types:
+                ["version-update:semver-major", "version-update:semver-minor"]
+          # prost minor (0.13 -> 0.14) regenerates all proto code and can
+          # change the Debug format oneof_case_name derives type names from
+          # (guarded by the oneof_case_name_known_variants tripwire). Upgrade
+          # deliberately, together with prost-build, on the full test matrix.
+          - dependency-name: "prost"
+            update-types:
+                ["version-update:semver-major", "version-update:semver-minor"]
+          - dependency-name: "prost-build"
+            update-types:
+                ["version-update:semver-major", "version-update:semver-minor"]
+          # sha2 0.11 bumps the RustCrypto digest traits, and rsa 0.9 still
+          # pins sha2 0.10 through its "sha2" feature — so adopting it needs
+          # a coordinated rsa upgrade, not an unattended bump.
+          - dependency-name: "sha2"
+            update-types:
+                ["version-update:semver-major", "version-update:semver-minor"]
+          # napi major is an N-API ABI change; it must move in lockstep with
+          # @napi-rs/cli (bindings/node, below) and be re-checked against the
+          # binding's test.mjs. Upgrade the pair by hand.
+          - dependency-name: "napi"
+            update-types: ["version-update:semver-major"]
+          - dependency-name: "napi-derive"
+            update-types: ["version-update:semver-major"]
+          - dependency-name: "napi-build"
+            update-types: ["version-update:semver-major"]
 
-    # The fuzz targets are a detached cargo workspace (cargo-fuzz
-    # convention), so they need their own entry.
+    # ── Fuzz targets (detached cargo-fuzz workspace) ──
     - package-ecosystem: cargo
       directory: "/fuzz"
       schedule:
           interval: weekly
       open-pull-requests-limit: 3
+      groups:
+          fuzz-minor:
+              patterns: ["*"]
+              update-types: ["minor", "patch"]
+      ignore:
+          # Same arkworks / prost pins as the root workspace — the fuzz
+          # targets share the crate's proof and proto code.
+          - dependency-name: "ark-*"
+            update-types:
+                ["version-update:semver-major", "version-update:semver-minor"]
+          - dependency-name: "prost"
+            update-types:
+                ["version-update:semver-major", "version-update:semver-minor"]
+          - dependency-name: "prost-build"
+            update-types:
+                ["version-update:semver-major", "version-update:semver-minor"]
 
-    # npm dev-dependencies for the napi-rs binding build (@napi-rs/cli).
+    # ── npm dev-deps for the napi-rs binding build ──
     - package-ecosystem: npm
       directory: "/bindings/node"
       schedule:
           interval: weekly
       open-pull-requests-limit: 3
+      groups:
+          binding-dev:
+              patterns: ["*"]
+              update-types: ["minor", "patch"]
+      ignore:
+          # @napi-rs/cli major must move with the napi crate (root workspace).
+          - dependency-name: "@napi-rs/cli"
+            update-types: ["version-update:semver-major"]
 
-    # Keeps the SHA-pinned GitHub Actions current (it updates the pin and
-    # the trailing `# stable` / `# nightly` ref comment together).
+    # ── GitHub Actions (SHA-pinned) — grouped into one PR ──
     - package-ecosystem: github-actions
       directory: "/"
       schedule:
           interval: weekly
       open-pull-requests-limit: 5
+      groups:
+          ci-actions:
+              patterns: ["*"]
