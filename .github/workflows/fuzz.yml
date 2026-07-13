@@ -1,0 +1,51 @@
+name: Fuzz
+
+# Weekly randomized exploration of the untrusted-input parsers, seeded
+# with the committed fixtures. The always-on smoke layer is
+# tests/robustness.rs; this goes deeper on a schedule.
+on:
+    schedule:
+        - cron: "0 4 * * 1" # Mondays 04:00 UTC
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+jobs:
+    fuzz:
+        name: cargo-fuzz (each target, bounded)
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+              with:
+                  persist-credentials: false
+
+            - name: Install protoc
+              run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+            - uses: dtolnay/rust-toolchain@efcb852328a9f50117170cc43094fb6f09eaf1ae # nightly
+
+            - uses: Swatinem/rust-cache@f13886b937689c021905a6b90929199931d60db1 # v2.8.1
+              with:
+                  workspaces: |
+                      .
+                      fuzz
+
+            - run: cargo install cargo-fuzz --locked
+
+            - name: Seed corpora from committed fixtures
+              run: |
+                  mkdir -p fuzz/corpus/parse_record fuzz/corpus/parse_block \
+                           fuzz/corpus/parse_signature fuzz/corpus/address_book \
+                           fuzz/corpus/parse_proof
+                  cp tests/fixtures/v6/*.rcd.gz tests/fixtures/mainnet/*.rcd.gz fuzz/corpus/parse_record/
+                  cp tests/fixtures/block-preview/*.gz fuzz/corpus/parse_block/
+                  cp tests/fixtures/v6/*.rcd_sig fuzz/corpus/parse_signature/
+                  cp tests/fixtures/test-v6-sidecar-4n.bin fuzz/corpus/address_book/
+                  cp tests/fixtures/tss/*.blk.gz fuzz/corpus/parse_proof/
+
+            - name: Fuzz each target (3 minutes each)
+              run: |
+                  for target in parse_record parse_block parse_signature address_book parse_proof; do
+                      cargo fuzz run "$target" -- -max_total_time=180
+                  done

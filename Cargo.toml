@@ -1,10 +1,35 @@
+[workspace]
+members = [".", "bindings/node"]
+
 [package]
 name = "hiero-streams"
 version = "0.1.0"
 edition = "2021"
+# Option::is_none_or (1.82) is the newest std API used; checked by CI's msrv
+# job and clippy's incompatible_msrv lint.
+rust-version = "1.82"
 license = "Apache-2.0"
-description = "Parse and cryptographically verify Hedera record stream files (block streams to follow)"
+description = "Parse and cryptographically verify Hedera consensus streams: v6 record files and HIP-1056 block streams, including in-band TSS block proofs"
 repository = "https://github.com/hiero-hackers/hiero-streams-rs"
+readme = "README.md"
+keywords = ["hedera", "hiero", "record-stream", "block-stream", "verification"]
+categories = ["parser-implementations", "cryptography"]
+# CI/governance config a crate consumer never needs. `docs/watch-state.json`
+# is mutable (the cutover tripwire edits it), so shipping it would churn the
+# package. src/, proto*/, tests/, examples/, and docs/ stay in the crate.
+exclude = [
+    ".github/",
+    ".githooks/",
+    ".cargo/",
+    "deny.toml",
+    "docs/watch-state.json",
+]
+
+# docs.rs builds with default features only; the block-proof
+# verification surface (the whole `proofs` module) is behind
+# `block-proofs`, so enable it there or hosted docs would omit it.
+[package.metadata.docs.rs]
+features = ["block-proofs"]
 
 [lib]
 # generated proto comments contain pseudo-code rustdoc would run
@@ -12,14 +37,65 @@ doctest = false
 
 [dependencies]
 prost = "0.13"
+# Default miniz_oxide backend kept deliberately: the zlib-rs and zlib-ng
+# backends were benchmarked and gave no throughput gain on these small
+# (~4 KB) per-second files, where inflate setup dominates — not worth
+# the extra dependency.
 flate2 = "1"
 sha2 = "0.10"
 rsa = { version = "0.9", features = ["sha2"] }
 hex = "0.4"
 thiserror = "2"
+serde_json = "1"
+ureq = { version = "2", optional = true }
+parquet = { version = "53", default-features = false, features = ["zstd"], optional = true }
+# block-proofs only. Arkworks is deliberate: the proof wire format IS
+# arkworks CanonicalSerialize (a "minimal" blstrs/halo2curves stack was
+# spiked at the same crate count, 3× the build time, and no
+# BabyJubjub/BN254 Groth16 — see ROADMAP.md). Pinned to 0.4: the
+# consensus nodes' Fiat-Shamir transcript depends on ark-ff 0.4's
+# expand_message_xmd behavior.
+ark-bn254 = { version = "0.4", optional = true }
+ark-ed-on-bn254 = { version = "0.4", optional = true }
+ark-bls12-381 = { version = "0.4", optional = true }
+ark-ec = { version = "0.4", optional = true }
+ark-ff = { version = "0.4", optional = true }
+ark-serialize = { version = "0.4", features = ["derive"], optional = true }
+ark-crypto-primitives = { version = "0.4", default-features = false, features = ["sponge"], optional = true }
+blake2 = { version = "0.10", optional = true }
+
+[features]
+default = ["fetch", "etl"]
+# network I/O for the `attest` CLI subcommand only — the library
+# itself never performs I/O
+fetch = ["dep:ureq"]
+# native threaded backfill pipeline (parquet writer) — CLI only
+etl = ["dep:parquet"]
+# block-stream proof verification (HIP-1056 TssSignedBlockProof):
+# Schnorr aggregate, hinTS BLS threshold, WRAPS Groth16+KZG.
+# Off by default — pulls in the arkworks stack.
+block-proofs = [
+    "dep:ark-bn254",
+    "dep:ark-ed-on-bn254",
+    "dep:ark-bls12-381",
+    "dep:ark-ec",
+    "dep:ark-ff",
+    "dep:ark-serialize",
+    "dep:ark-crypto-primitives",
+    "dep:blake2",
+]
+
+# The v6 examples build with default features; this one needs the
+# proof crypto, so gate it — otherwise `cargo build --examples` (and
+# docs.rs) would try to compile it without `block-proofs` and fail.
+[[example]]
+name = "verify_block"
+required-features = ["block-proofs"]
+
+[dev-dependencies]
+# already a main dependency — used by tests to build corrupt inputs
+flate2 = "1"
 
 [build-dependencies]
 prost-build = "0.13"
 
-[dev-dependencies]
-serde_json = "1"

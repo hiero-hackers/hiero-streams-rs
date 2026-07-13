@@ -1,0 +1,19 @@
+{
+    "name": "@hiero-streams/node",
+    "version": "0.1.0",
+    "private": true,
+    "description": "Node.js bindings for hiero-streams (Rust record-stream parser + verifier)",
+    "license": "Apache-2.0",
+    "main": "index.js",
+    "types": "index.d.ts",
+    "napi": {
+        "name": "hiero-streams"
+    },
+    "scripts": {
+        "build": "napi build --release --platform",
+        "test": "node test.mjs"
+    },
+    "devDependencies": {
+        "@napi-rs/cli": "^2.18.4"
+    }
+}

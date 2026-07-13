@@ -1,0 +1,32 @@
+version: 2
+updates:
+    # Root Cargo workspace (library, CLI, and the Node binding crate,
+    # which is a workspace member).
+    - package-ecosystem: cargo
+      directory: "/"
+      schedule:
+          interval: weekly
+      open-pull-requests-limit: 5
+
+    # The fuzz targets are a detached cargo workspace (cargo-fuzz
+    # convention), so they need their own entry.
+    - package-ecosystem: cargo
+      directory: "/fuzz"
+      schedule:
+          interval: weekly
+      open-pull-requests-limit: 3
+
+    # npm dev-dependencies for the napi-rs binding build (@napi-rs/cli).
+    - package-ecosystem: npm
+      directory: "/bindings/node"
+      schedule:
+          interval: weekly
+      open-pull-requests-limit: 3
+
+    # Keeps the SHA-pinned GitHub Actions current (it updates the pin and
+    # the trailing `# stable` / `# nightly` ref comment together).
+    - package-ecosystem: github-actions
+      directory: "/"
+      schedule:
+          interval: weekly
+      open-pull-requests-limit: 5

@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+#
+# Pre-commit checks for hiero-streams — the fast subset of CI, run
+# locally so formatting and lint failures surface before you push
+# (and before a reviewer sees a red CI run).
+#
+# Enable once per clone:
+#   git config core.hooksPath .githooks
+#
+# Bypass for a work-in-progress commit with:  git commit --no-verify
+#
+# The full feature matrix (no-default-features, block-proofs, the test
+# suites, cargo-audit, fuzzing, and the Node binding) still runs in CI;
+# this only mirrors the two fastest gates.
+set -euo pipefail
+
+# Skip entirely unless Rust or Cargo files are staged.
+if ! git diff --cached --name-only --diff-filter=ACM \
+        | grep -qE '\.rs$|(^|/)Cargo\.(toml|lock)$'; then
+    exit 0
+fi
+
+echo "pre-commit › cargo fmt --check"
+cargo fmt --check
+
+echo "pre-commit › cargo clippy --all-targets -- -D warnings"
+cargo clippy --all-targets -- -D warnings
+
+echo "pre-commit › ok"

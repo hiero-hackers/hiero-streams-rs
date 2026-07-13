@@ -11,7 +11,15 @@
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-changed=proto");
+    println!("cargo:rerun-if-changed=proto-hapi");
+    let out = std::env::var("OUT_DIR")?;
+    // Each unit gets its own out dir: both trees contain a `proto`
+    // protobuf package, and sharing OUT_DIR lets the second unit
+    // clobber the first's generated files.
+    std::fs::create_dir_all(format!("{out}/rcd"))?;
+    std::fs::create_dir_all(format!("{out}/hapi"))?;
     prost_build::Config::new()
+        .out_dir(format!("{out}/rcd"))
         .include_file("hiero_protos.rs")
         .compile_protos(
             &[
@@ -21,5 +29,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ],
             &["proto"],
         )?;
+    // Second, independent compile unit: the block-stream protos from
+    // hiero-consensus-node (see proto-hapi/VENDOR_COMMIT). Kept
+    // separate because that tree uses its own directory layout and
+    // re-declares `package proto` services types; isolation avoids
+    // any clash with the record-file unit above.
+    prost_build::Config::new()
+        .out_dir(format!("{out}/hapi"))
+        .include_file("hapi_protos.rs")
+        .compile_protos(&["proto-hapi/block/stream/block.proto"], &["proto-hapi"])?;
     Ok(())
 }

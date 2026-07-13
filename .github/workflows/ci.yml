@@ -21,7 +21,7 @@ jobs:
             - name: Install protoc
               run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
 
-            - uses: dtolnay/rust-toolchain@stable
+            - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
               with:
                   components: rustfmt, clippy
 
@@ -29,4 +29,73 @@ jobs:
 
             - run: cargo fmt --check
             - run: cargo clippy --all-targets -- -D warnings
+            # The pure-library configuration (what embedders and the Node
+            # binding consume) — feature-gated code must not rot unseen.
+            - run: cargo clippy --no-default-features --all-targets -- -D warnings
+            # The proof-verification stack (arkworks) is off by default;
+            # its differential tests against the JS verifier run here.
+            - run: cargo clippy --features block-proofs --all-targets -- -D warnings
             - run: cargo test
+            - run: cargo test --no-default-features
+            - run: cargo test --features block-proofs --release
+            # Compile the whole workspace incl. the Node binding crate.
+            - run: cargo check --workspace --all-targets
+            # Docs must build clean (doctest is off, so this is the only
+            # check the doc comments ever get).
+            - run: cargo doc --no-deps --features block-proofs
+              env:
+                  RUSTDOCFLAGS: -D warnings
+
+    msrv:
+        name: MSRV (rust-version in Cargo.toml)
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+              with:
+                  persist-credentials: false
+            - name: Install protoc
+              run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+            - uses: dtolnay/rust-toolchain@633be07371d2bfc430534a728ba2e67cd3082b78 # 1.82
+            - uses: Swatinem/rust-cache@f13886b937689c021905a6b90929199931d60db1 # v2.8.1
+            - run: cargo check --all-features
+
+    deny:
+        name: Supply chain (cargo-deny)
+        # Advisories + licenses + bans + sources, per deny.toml — a
+        # superset of `cargo audit`. Uses a prebuilt binary (no compile).
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+              with:
+                  persist-credentials: false
+            - uses: EmbarkStudios/cargo-deny-action@8a45e1c7c9a95dfae3276e89a553705e40ae45a2 # v2.0.20
+              with:
+                  command: check
+
+    binding:
+        name: Node binding (build + JS differential test)
+        # `cargo check --workspace` compiles the binding crate, but only
+        # this job exercises its JavaScript contract (the golden-shape
+        # output and the exported surface) — a lib API change can compile
+        # yet break the binding, and that only shows up here.
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+              with:
+                  persist-credentials: false
+            - name: Install protoc
+              run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+            - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+            - uses: Swatinem/rust-cache@f13886b937689c021905a6b90929199931d60db1 # v2.8.1
+            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+              with:
+                  node-version: 20
+            - name: Install binding dev-deps
+              working-directory: bindings/node
+              run: npm ci
+            - name: Build native binding
+              working-directory: bindings/node
+              run: npm run build
+            - name: JS differential test (golden shape + block proofs)
+              working-directory: bindings/node
+              run: npm test

@@ -1,0 +1,11 @@
+{
+    "_comment": "Sentinel state: the newest mainnet preview block whose root chain, numbering, and (when TSS) hinTS signature this repo has verified. Advanced automatically by `hiero-streams sentinel` (.github/workflows/sentinel.yml); on a loud failure (format drift, bootstrap publication, chain break) react per docs/MIGRATION.md then update by hand.",
+    "initialized": false,
+    "lastBlock": null,
+    "lastRoot": null,
+    "proofPath": null,
+    "signatureBytes": null,
+    "verifiedTotal": null,
+    "since": null,
+    "checked": null
+}

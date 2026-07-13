@@ -1,0 +1,22 @@
+[package]
+name = "hiero-streams-node"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Node.js bindings for hiero-streams"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# block-proofs so JS consumers get the full verification surface;
+# fetch/etl stay off — the binding never does I/O
+hiero-streams = { path = "../..", default-features = false, features = ["block-proofs"] }
+napi = { version = "2", features = ["napi8"] }
+napi-derive = "2"
+serde_json = "1"
+hex = "0.4"
+
+[build-dependencies]
+napi-build = "2"

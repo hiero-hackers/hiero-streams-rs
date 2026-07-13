@@ -18,12 +18,18 @@ network itself signed or an independent implementation computed:
   the mirror node's independent decoding of the same files — this
   caught a real post-release response code (527) the vendored protos
   didn't know yet.
-- **Check-for-check proof-path agreement.** Block-era proof
-  verification (hinTS BLS threshold, aggregate Schnorr, WRAPS
-  Groth16+KZG) is differentially tested against
+- **Check-for-check proof-path agreement — across independent crypto
+  stacks.** Block-era proof verification (hinTS BLS threshold,
+  aggregate Schnorr, WRAPS Groth16+KZG) is differentially tested
+  against
   [`hiero-block-verifier-js`](https://github.com/hiero-hackers/hiero-block-verifier-js)
   over `hiero-block-node` fixtures — every individual check, not just
-  the verdict, must agree (`tests/block_proof_differential.rs`).
+  the verdict, must agree (`tests/block_proof_differential.rs`). The
+  divergence is deliberate: the JS verifier is built on pure-JS
+  `@noble/curves`, this crate on arkworks — two unrelated curve
+  implementations in two languages deriving identical pairings,
+  transcripts, and verdicts over the same bytes. Agreement between
+  shared-dependency implementations would prove far less.
 - **Continuity is proven, not assumed.** The v6 running-hash chain and
   the block-era root chain (recomputed merkle root == next footer's
   claim) are asserted across every consecutive fixture pair and during
@@ -100,6 +106,17 @@ for this crate when you need that ground truth directly:
   10k-TPS design target, a no-GC parser stops being a nicety. This
   crate already parses and proof-verifies the new format behind the
   same era-detecting API, validated against the mainnet preview.
+- **The check on the block-node era itself.** HIP-1081 introduces a
+  new class of intermediaries — independent (including commercial)
+  block-node operators — and its trust model says consumers should
+  trust *proofs*, not node reputation. That sentence only means
+  something if independent proof verifiers exist: today there are
+  exactly two, `hiero-block-verifier-js` and this crate, and they are
+  differentially tested against each other. More hands between the
+  network and you strengthens the case for verifying, not weakens it.
+  And the v6 era never migrates: four years of history exist only as
+  record files (even served as HIP-1193 wrapped blocks, the payload is
+  v6 bytes) — auditing it requires a maintained v6 verifier, forever.
 
 **Not the right tool** for ordinary application reads — use the mirror
 REST API or a typed client for "get this account's balance." This is
@@ -235,14 +252,16 @@ expect **roughly 10–30 TB and $1,200–3,600 of egress** for the full
 era — plus the fixed ~$26 of ops. Bounded windows stay cheap: a
 modern day ~$0.04, a month ~$1; a 2023 peak day up to a few dollars.
 
-**Time estimates** (measured on this machine, one process):
+**Time estimates** (measured on this machine, one process; the
+quiet-era numbers are from a real 7-consecutive-day run, 2026-07-05 →
+07-11, 302,211 files):
 
 | Step | Measured | Extrapolation |
 | --- | --- | --- |
-| Download, quiet day (43,200 files, ~0.2 GB) | ~55–100 files/s (latency-bound) | ~7–13 min |
+| Download, quiet day (43,200 files, ~0.2 GB) | ~220 files/s sustained (latency-bound; 3–3.5 min/day over 7 straight days) | ~3.5 min |
 | Download, heavy 2023 day (43,200 files, tens of GB) | bandwidth-bound | ~30–60 min at 30 MB/s |
-| Download, full v6 era | both regimes | **days–2 weeks** single machine; parallelize by date range to cut linearly |
-| Parse/transform (`etl`), per day | 1,800 files in 0.15 s | **~3 s/day; ~2 h for the whole era** |
+| Download, full v6 era | both regimes | **~4 days–2 weeks** single machine (≈3.5-day latency floor at 220 files/s + the bandwidth-bound heavy era); parallelize by date range to cut linearly |
+| Parse/transform (`etl`), per day | full week in 32.6 s → 4.7 s/day, disk reads + Parquet writes included | **~2 h of file overhead for the era's 64 M files**, plus parse time on heavy days (parse core sustains 834k tx/s) |
 
 Parsing is never the bottleneck; the wall-clock cost of a full
 backfill is download, and the dollar cost is egress on the heavy era.
@@ -266,12 +285,15 @@ previous day:
 
 `hiero-streams etl` is the fast path for bulk history: download record
 files (`gcloud storage cp`, parallel + resumable), then run the
-threaded pipeline. On a full mainnet hour (1,800 files / 13,587
-transactions / 34,151 transfer legs) it transforms in **0.45 s** with
-`--verify-chain` proving the sequence gapless and un-reordered, and the
-dataset reconciles internally: `fee_report`'s independently computed
-totals match the Parquet `sum(fee_tinybar)` exactly. Query the result
-from a laptop:
+threaded pipeline. On a full mainnet **week** (2026-07-05 → 07-11:
+302,211 files, 3,259,764 transactions) it transforms in **33 s** on the
+same 8-core machine — disk reads included — with `--verify-chain`
+proving the entire week gapless and un-reordered: the running-hash
+chain holds within every day *and across all six midnight boundaries*.
+The dataset reconciles exactly: an independent re-parse of all 302k
+files matches the Parquet dataset's per-day row counts and
+`sum(fee_tinybar)` to the tinybar (week total 81,138.9769 ℏ). Query the
+result from a laptop:
 
 ```sql
 SELECT day, type, sum(fee_tinybar) / 1e8 AS fees_hbar

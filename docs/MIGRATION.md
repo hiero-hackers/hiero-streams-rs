@@ -41,6 +41,19 @@ both formats describe the same consensus output.
 - **v6 history.** Every record file ever published is immutable. The v6 parser,
   verifier, and any backfill stay correct forever. The
   full-era backfill (ROADMAP §3) is v6 data regardless of when it runs.
+  Even where history is served as HIP-1193 wrapped record blocks, the
+  wrapped payload is still v6 record-file bytes — verifying it still
+  means v6 verification, so the `record/` half of this crate is
+  permanent, not transitional.
+- **The reason to exist.** The migration replaces *distribution*
+  (bucket → block nodes), not *verification*. It also adds a new
+  intermediary class — independent and commercial block-node operators
+  (HIP-1081 Tier 1/2) — whose output is exactly what "trust proofs,
+  not reputation" needs an independent verifier for. Post-cutover this
+  crate's role narrows and sharpens: the consumer-side trust kernel
+  (one of two independent proof implementations), the permanent v6
+  auditor, and the Rust implementation of the proof stack for anyone
+  building block-node-adjacent infrastructure (ROADMAP §4).
 - **The library API.** `detect_format` already routes both eras to
   transaction-shaped output; callers feeding bytes blindly keep working. The
   no-I/O core means a change in *where* bytes come from cannot break the crate.
@@ -63,8 +76,11 @@ both formats describe the same consensus output.
    carry over; its fetch-many model applies only to the v6 era.
 3. **Distribution** — likely shifts from the GCS bucket to block nodes
    (`hiero-ledger/hiero-block-node`) serving blocks and proofs; the HIP-679
-   bucket layout is sunsetting. Only the opt-in `fetch` feature and CLI care;
-   plan for a block-node backend beside the bucket backend.
+   bucket layout is sunsetting. Only the opt-in `fetch` feature and CLI care.
+   The planned intake is a `BlockStreamSubscribeService` gRPC client —
+   HIP-1081's pull side, designed for consumers like this crate (the
+   CN-facing publish service is an operator surface, not ours). Scoped as
+   the `subscribe` feature in ROADMAP §4, gated on block-node GA.
 4. **ETL** — done: `etl` era-detects `.blk.gz` inputs; `--verify-chain`
    asserts block-number gaplessness and recomputed-root == footer-claim
    continuity.
@@ -104,7 +120,7 @@ Consequences for this repo:
 
 | Repo | Impact | Action |
 |---|---|---|
-| `hiero-streams-rs` (this) | proofs, ETL, fetch backend | §3–4 above |
+| `hiero-streams-rs` (this) | proofs, ETL, fetch backend | §3–4 above; ROADMAP §4 (`subscribe` client, archive-daemon repo) |
 | `hiero-block-verifier-js` | none — it IS the block-era reference | keep fixtures current with block-node releases |
 
 ## 6. Tripwires to watch

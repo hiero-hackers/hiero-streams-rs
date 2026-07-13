@@ -1,0 +1,42 @@
+name: CodeQL
+
+# Static analysis (SAST) via CodeQL — the scanner OpenSSF Scorecard
+# credits for its SAST check.
+#
+# Rust support is in public PREVIEW. `build-mode: none` is deliberate:
+# the Rust extractor analyzes source directly, so this needs neither
+# protoc nor the (heavy) arkworks build, which makes the run robust.
+# Watch the first run after enabling — if the preview analyzer misbehaves
+# on this crate, deleting this file removes the check with no effect on
+# the rest of CI.
+on:
+    push:
+        branches: [main]
+    pull_request:
+        branches: [main]
+    schedule:
+        - cron: "0 6 * * 2" # weekly, Tuesdays 06:00 UTC
+
+permissions:
+    contents: read
+
+jobs:
+    analyze:
+        name: Analyze (rust)
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            security-events: write # required to upload the SARIF results
+        steps:
+            - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+              with:
+                  persist-credentials: false
+
+            - uses: github/codeql-action/init@e5d2f324924c57b6cabef9bdd7a1c85d62a89be2 # v3.37.0
+              with:
+                  languages: rust
+                  build-mode: none
+
+            - uses: github/codeql-action/analyze@e5d2f324924c57b6cabef9bdd7a1c85d62a89be2 # v3.37.0
+              with:
+                  category: "/language:rust"

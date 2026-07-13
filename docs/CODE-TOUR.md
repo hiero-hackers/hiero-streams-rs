@@ -32,7 +32,10 @@ src/
   main.rs                thin entry point → cli::run
   cli/                   the CLI, kept separate from the library (bin-only)
     mod.rs                 dispatch + parse/verify/block-activity handlers
-    attest.rs              the one networked command                   (feature: fetch)
+    attest.rs              networked: v6 multi-node attestation        (feature: fetch)
+    sentinel.rs            networked: continuous preview-stream verification
+                           (state: docs/sentinel-state.json, schedule:
+                           .github/workflows/sentinel.yml)             (feature: fetch)
     etl/                 threaded backfill → day-partitioned Parquet    (feature: etl)
       mod.rs                 arg parsing + era dispatch (+ integration tests)
       parquet.rs             the Parquet sink (schemas + writers)

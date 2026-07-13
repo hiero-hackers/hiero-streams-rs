@@ -8,11 +8,11 @@
 //!
 //! The hash domain is the ENTIRE uncompressed file, version header
 //! included, and the signature is over the 48-byte hash itself —
-//! established empirically in the TypeScript reference and preserved
-//! here bit-for-bit.
+//! established empirically against real signed mainnet files: the
+//! recomputed hashes verify under the signing nodes' actual RSA keys
+//! (see tests/record_verify.rs).
 
-use crate::{proto, Error};
-use flate2::read::GzDecoder;
+use crate::{inflate, proto, Error};
 use prost::Message;
 use rsa::pkcs1v15::{Signature, VerifyingKey};
 use rsa::pkcs8::DecodePublicKey;
@@ -20,25 +20,14 @@ use rsa::signature::Verifier;
 use rsa::RsaPublicKey;
 use sha2::{Digest, Sha384};
 use std::collections::BTreeMap;
-use std::io::Read;
-
-const GZIP_MAGIC: [u8; 2] = [0x1f, 0x8b];
 
 /// SHA-384 of a record file, over the uncompressed bytes (as signed).
 pub fn record_file_hash(record_file_bytes: &[u8]) -> Result<[u8; 48], Error> {
-    let inflated;
-    let bytes = if record_file_bytes.len() >= 2 && record_file_bytes[..2] == GZIP_MAGIC {
-        let mut out = Vec::new();
-        GzDecoder::new(record_file_bytes).read_to_end(&mut out)?;
-        inflated = out;
-        &inflated[..]
-    } else {
-        record_file_bytes
-    };
-    Ok(Sha384::digest(bytes).into())
+    Ok(Sha384::digest(inflate(record_file_bytes)?).into())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ParsedSignatureFile {
     /// Signature file format version (currently only 6 is supported)
     pub version: u8,
@@ -126,7 +115,100 @@ pub fn parse_address_book(bytes: &[u8]) -> Result<AddressBook, Error> {
     Ok(entries)
 }
 
+/// SHA-384 over the v6 METADATA section: `int32(version) |
+/// int32(major) | int32(minor) | int32(patch) | startRunningHash |
+/// endRunningHash | int64(blockNumber)`. Layout established
+/// empirically against real signed fixtures (the signing node's
+/// claimed metadata hash reproduces exactly).
+pub fn record_file_metadata_hash(record_file_bytes: &[u8]) -> Result<[u8; 48], Error> {
+    let bytes = inflate(record_file_bytes)?;
+    if bytes.len() < 4 {
+        return Err(Error::TooShort);
+    }
+    let version = i32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+    if version != 6 {
+        return Err(Error::UnsupportedVersion(version));
+    }
+    let file = proto::RecordStreamFile::decode(&bytes[4..])?;
+    let v = file.hapi_proto_version.unwrap_or_default();
+    let mut hasher = Sha384::new();
+    hasher.update(version.to_be_bytes());
+    hasher.update(v.major.to_be_bytes());
+    hasher.update(v.minor.to_be_bytes());
+    hasher.update(v.patch.to_be_bytes());
+    hasher.update(
+        file.start_object_running_hash
+            .map(|h| h.hash)
+            .unwrap_or_default(),
+    );
+    hasher.update(
+        file.end_object_running_hash
+            .map(|h| h.hash)
+            .unwrap_or_default(),
+    );
+    hasher.update(file.block_number.to_be_bytes());
+    Ok(hasher.finalize().into())
+}
+
+/// Verify a node's METADATA signature for a record file — the second
+/// signature in every `.rcd_sig`, covering version/running-hash/block
+/// metadata rather than the file contents.
+pub fn verify_metadata_signature(
+    record_file_bytes: &[u8],
+    signature_file_bytes: &[u8],
+    public_key_hex: &str,
+) -> Result<bool, Error> {
+    let hash = record_file_metadata_hash(record_file_bytes)?;
+    let sig = parse_signature_file(signature_file_bytes)?;
+    let Some(metadata_signature) = sig.metadata_signature else {
+        return Ok(false);
+    };
+    verify_node_signature(&hash, &metadata_signature, public_key_hex)
+}
+
+/// A break found while checking a sequence of record files.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ChainBreak {
+    /// Index of the file whose link to its predecessor failed
+    pub index: usize,
+    pub reason: String,
+}
+
+/// Verify the running-hash chain across CONSECUTIVE record files (in
+/// order): each file's start hash must equal its predecessor's end
+/// hash, and block numbers must increment by one. Proves the sequence
+/// is gapless and un-reordered — individual attestation proves each
+/// file, the chain proves the history between them.
+pub fn verify_running_hash_chain(
+    files: &[crate::record::ParsedRecordFile],
+) -> Result<(), ChainBreak> {
+    for (i, pair) in files.windows(2).enumerate() {
+        let (prev, next) = (&pair[0], &pair[1]);
+        if next.start_running_hash != prev.end_running_hash {
+            return Err(ChainBreak {
+                index: i + 1,
+                reason: "start running hash does not match predecessor's end hash".into(),
+            });
+        }
+        // checked_add: block_number is attacker-controlled proto data, so
+        // a crafted i64::MAX would overflow (a debug-build panic) — an
+        // overflow is itself a chain break.
+        if Some(next.block_number) != prev.block_number.checked_add(1) {
+            return Err(ChainBreak {
+                index: i + 1,
+                reason: format!(
+                    "block number gap: {} follows {}",
+                    next.block_number, prev.block_number
+                ),
+            });
+        }
+    }
+    Ok(())
+}
+
 /// A `.rcd_sig` file downloaded from one node's bucket directory.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NodeSignature {
     /// Node account id the file came from
     pub node: String,
@@ -135,6 +217,7 @@ pub struct NodeSignature {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct VerifyResult {
     /// SHA-384 actually computed from the record file
     pub hash: [u8; 48],

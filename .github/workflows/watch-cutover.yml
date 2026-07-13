@@ -1,0 +1,88 @@
+name: Watch cutover signals
+
+# The HIP-1056 migration tripwire (docs/MIGRATION.md §6). Compares the live
+# state of the cutover signals against docs/watch-state.json and FAILS the
+# run when anything moved — a failed scheduled run notifies the repo owner.
+# The preview stream was discovered by accident; the cutover shouldn't be.
+#
+# Signals watched (all pollable with the built-in GITHUB_TOKEN):
+#   - mirror-node epics #13574 (Block Node Cutover Testing) and #13346
+#     (WRB Cutover Support) — closure is the cutover trigger
+#   - hiero-block-node latest release tag — the proof-serving API/corpus source
+#   - HIP-1056 block-items update PR #1474 — state AND head commit (an
+#     in-place amendment moves the proof format even while the PR stays open)
+#   - HIP-1200 hinTS spec — last commit to HIP/hip-1200.md (a spec revision
+#     changes the port's target)
+#
+# NOT watched here: the block-preview/ GCS bucket layout. It is
+# requester-pays (no GitHub-token access) and churns every block, so a
+# token-only diff is infeasible; check it manually per docs/MIGRATION.md.
+#
+# After reacting to a change: update docs/watch-state.json and commit.
+on:
+    schedule:
+        - cron: "0 5 * * 1,4" # Mondays and Thursdays, 05:00 UTC
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+jobs:
+    watch:
+        name: Diff cutover signals vs acknowledged state
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+              with:
+                  persist-credentials: false
+
+            - name: Compare live state to docs/watch-state.json
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  set -eu
+                  state="docs/watch-state.json"
+                  want() { python3 -c "import json;print(json.load(open('$state'))['$1'])"; }
+
+                  ihr="hiero-ledger/hiero-improvement-proposals"
+                  live_13574=$(gh issue view 13574 --repo hiero-ledger/hiero-mirror-node --json state --jq '.state | ascii_downcase')
+                  live_13346=$(gh issue view 13346 --repo hiero-ledger/hiero-mirror-node --json state --jq '.state | ascii_downcase')
+                  live_release=$(gh api repos/hiero-ledger/hiero-block-node/releases/latest --jq .tag_name)
+                  live_1474=$(gh pr view 1474 --repo "$ihr" --json state --jq '.state | ascii_downcase')
+                  # Head SHA catches a PR amended in place (still "open").
+                  live_1474_head=$(gh pr view 1474 --repo "$ihr" --json headRefOid --jq '.headRefOid[0:12]')
+                  # Last commit touching the hinTS HIP file — catches a spec revision.
+                  live_1200=$(gh api "repos/$ihr/commits?path=HIP/hip-1200.md&per_page=1" --jq '.[0].sha[0:12]')
+
+                  moved=0
+                  check() { # label live acknowledged
+                      if [ "$2" != "$3" ]; then
+                          echo "::warning::$1 moved: acknowledged '$3' -> live '$2'"
+                          echo "| $1 | $3 | **$2** |" >> "$GITHUB_STEP_SUMMARY"
+                          moved=1
+                      else
+                          echo "| $1 | $3 | $2 |" >> "$GITHUB_STEP_SUMMARY"
+                      fi
+                  }
+
+                  {
+                      echo "## Cutover signals"
+                      echo ""
+                      echo "| Signal | Acknowledged | Live |"
+                      echo "| --- | --- | --- |"
+                  } >> "$GITHUB_STEP_SUMMARY"
+
+                  check "mirror-node epic #13574 (Block Node Cutover Testing)" "$live_13574" "$(want mirror_node_epic_13574_block_node_cutover_testing)"
+                  check "mirror-node epic #13346 (WRB Cutover Support)"        "$live_13346" "$(want mirror_node_epic_13346_wrb_cutover_support)"
+                  check "hiero-block-node latest release"                      "$live_release" "$(want block_node_latest_release)"
+                  check "HIP-1056 block-items update PR #1474 (state)"         "$live_1474" "$(want hip_1474_block_items_update_pr)"
+                  check "HIP-1056 block-items update PR #1474 (head commit)"   "$live_1474_head" "$(want hip_1474_block_items_update_pr_head)"
+                  check "HIP-1200 hinTS spec (last commit)"                    "$live_1200" "$(want hip_1200_hints_last_commit)"
+
+                  if [ "$moved" -eq 1 ]; then
+                      echo "" >> "$GITHUB_STEP_SUMMARY"
+                      echo "A cutover signal moved — see docs/MIGRATION.md §6-7 for the reaction checklist, then update docs/watch-state.json." >> "$GITHUB_STEP_SUMMARY"
+                      exit 1
+                  fi
+                  echo "" >> "$GITHUB_STEP_SUMMARY"
+                  echo "No movement. Watch mode holds." >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,11 @@
+# cargo-audit configuration (CI `audit` job).
+
+[advisories]
+# RUSTSEC-2023-0071 — "Marvin Attack" timing sidechannel in the `rsa` crate.
+# No patched release exists. The advisory concerns PRIVATE-key operations
+# (decryption/signing) leaking key material through timing. This crate never
+# holds or uses an RSA private key: `rsa` is used exclusively for
+# SIGNATURE VERIFICATION with the consensus nodes' public keys
+# (src/verify.rs), where the timing sidechannel is not applicable.
+# Revisit if a patched `rsa` ships or if any private-key use is ever added.
+ignore = ["RUSTSEC-2023-0071"]

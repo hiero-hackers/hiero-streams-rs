@@ -1,0 +1,62 @@
+# cargo-deny supply-chain policy. Run: cargo deny check --all-features
+# CI runs it on every push (see .github/workflows/ci.yml). It is a
+# superset of `cargo audit`: advisories + licenses + bans + sources.
+
+[graph]
+# Check the whole feature surface, including the off-by-default proof
+# stack (arkworks) — those crates must clear the same policy.
+all-features = true
+
+[advisories]
+version = 2
+ignore = [
+    # RUSTSEC-2023-0071 — "Marvin Attack" timing sidechannel in `rsa`.
+    # No patched release exists. The advisory concerns PRIVATE-key
+    # operations leaking key material through timing. This crate never
+    # holds or uses an RSA private key: `rsa` is used exclusively for
+    # signature VERIFICATION with the consensus nodes' public keys
+    # (src/verify.rs), so the sidechannel does not apply. Revisit if a
+    # patched `rsa` ships or any private-key use is ever added.
+    "RUSTSEC-2023-0071",
+    # RUSTSEC-2024-0436 — `paste` is unmaintained (not a vulnerability).
+    # It is a transitive proc-macro pulled in by arkworks 0.4 and parquet;
+    # neither exposes a version bump that drops it, and it does no runtime
+    # work (compile-time macro only). Revisit if arkworks/parquet move off
+    # it or a security advisory (not just "unmaintained") appears.
+    "RUSTSEC-2024-0436",
+    # RUSTSEC-2024-0388 — `derivative` is unmaintained (not a
+    # vulnerability). Same story: a transitive compile-time derive macro
+    # pulled in by arkworks 0.4, with no upgrade path from arkworks. Only
+    # reachable under the off-by-default `block-proofs` feature.
+    "RUSTSEC-2024-0388",
+]
+
+[licenses]
+version = 2
+# Permissive licenses only. Copyleft (GPL / AGPL / LGPL) is denied by
+# omission — if a dependency ever pulls one in, this check fails loudly.
+allow = [
+    "Apache-2.0",
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "CC0-1.0",              # public-domain dedication (maximally permissive)
+    "CDLA-Permissive-2.0", # permissive data license, no copyleft/share-alike
+]
+confidence-threshold = 0.9
+
+[bans]
+# A real transitive tree carries duplicate versions of common crates;
+# that is noise, not a policy violation — warn, don't fail.
+multiple-versions = "warn"
+# But wildcard ("*") version requirements are a supply-chain smell.
+wildcards = "deny"
+
+[sources]
+# Everything must come from crates.io; no unvetted git or alt registries.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

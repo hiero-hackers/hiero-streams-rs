@@ -132,6 +132,9 @@ for the cutover analysis.
 This crate is a *client-side reader* of the network's output. Upstream of it:
 `hiero-consensus-node` (produces the streams and defines the protos) and, in the
 block era, `hiero-ledger/hiero-block-node` (the new distribution/persistence node
-that will serve blocks and proofs). Downstream: everything derived — including
-mirror nodes, which is precisely why this exists: to check derived data against
-ground truth without trusting the intermediary.
+that will serve blocks and proofs). A block node verifies proofs on *ingest*;
+this crate verifies the same proofs on the *consumer side* — the same trust
+kernel, pointed the other way, which is what makes HIP-1081's
+"trust proofs, not node reputation" checkable at all. Downstream: everything
+derived — including mirror nodes, which is precisely why this exists: to check
+derived data against ground truth without trusting the intermediary.

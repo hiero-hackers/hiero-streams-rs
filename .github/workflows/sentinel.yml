@@ -1,0 +1,106 @@
+name: Sentinel
+
+# Continuous verification of the LIVE mainnet preview block stream —
+# the empirical companion to watch-cutover.yml: that workflow watches
+# metadata signals (PRs, epics, releases); this one watches the stream
+# itself. Every run advances docs/sentinel-state.json past every block
+# it verified: gapless numbering, root-chain continuity (including the
+# seam with the previous run), hinTS signatures the moment blocks carry
+# TSS proofs, and LOUD failure on any proof-format drift or a ledger-ID
+# publication appearing — the cutover moments themselves.
+#
+# Setup (one-time, repo settings → secrets):
+#   SENTINEL_GCP_SA_KEY      service-account JSON key (the bucket is
+#                            requester-pays; storage.objects.get + list)
+#   SENTINEL_BILLING_PROJECT the GCP project billed for egress
+# Until both exist, runs no-op green. First run: trigger manually with
+# an init_block (a block number that already exists in the bucket).
+#
+# Cost note: the preview produces ~30-45k blocks/day (~2 GB/day of
+# egress ≈ $0.25/day billed to the billing project, independent of
+# schedule frequency — every block is verified exactly once).
+# ── DORMANT: manual-trigger only. To switch the sentinel ON, add the
+# two secrets above and uncomment the schedule block. ────────────────
+on:
+    # schedule:
+    #     - cron: "17 */6 * * *" # every 6 hours
+    workflow_dispatch:
+        inputs:
+            init_block:
+                description: "First block to verify (first run only)"
+                required: false
+
+permissions:
+    contents: write # the run commits its advanced state file
+
+concurrency:
+    group: sentinel # never two sentinels racing the state file
+    cancel-in-progress: false
+
+jobs:
+    verify-stream:
+        runs-on: ubuntu-latest
+        steps:
+            # persist-credentials stays ON (house exception, documented):
+            # this workflow pushes the advanced state file back to main.
+            - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+            - name: Check secrets
+              id: gate
+              env:
+                  KEY: ${{ secrets.SENTINEL_GCP_SA_KEY }}
+              run: |
+                  if [ -z "$KEY" ]; then
+                      echo "SENTINEL_GCP_SA_KEY not configured — skipping (see workflow header)." | tee -a "$GITHUB_STEP_SUMMARY"
+                      echo "run=false" >> "$GITHUB_OUTPUT"
+                  else
+                      echo "run=true" >> "$GITHUB_OUTPUT"
+                  fi
+
+            - name: Authenticate gcloud
+              if: steps.gate.outputs.run == 'true'
+              env:
+                  KEY: ${{ secrets.SENTINEL_GCP_SA_KEY }}
+              run: |
+                  echo "$KEY" > /tmp/sa.json
+                  gcloud auth activate-service-account --key-file=/tmp/sa.json
+                  rm /tmp/sa.json
+
+            - name: Install protoc
+              if: steps.gate.outputs.run == 'true'
+              run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+            - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+              if: steps.gate.outputs.run == 'true'
+
+            - uses: Swatinem/rust-cache@f13886b937689c021905a6b90929199931d60db1 # v2.8.1
+              if: steps.gate.outputs.run == 'true'
+
+            - name: Build verifier
+              if: steps.gate.outputs.run == 'true'
+              run: cargo build --release --features block-proofs
+
+            - name: Run sentinel
+              if: steps.gate.outputs.run == 'true'
+              env:
+                  GCS_USER_PROJECT: ${{ secrets.SENTINEL_BILLING_PROJECT }}
+                  INIT_BLOCK: ${{ inputs.init_block }}
+              run: |
+                  ./target/release/hiero-streams sentinel \
+                      ${INIT_BLOCK:+--init-block "$INIT_BLOCK"}
+
+            # State advances even when a later step fails loudly — a
+            # verified block stays verified; only unverified work repeats.
+            - name: Commit advanced state
+              if: always() && steps.gate.outputs.run == 'true'
+              run: |
+                  if git diff --quiet docs/sentinel-state.json; then
+                      echo "state unchanged"
+                      exit 0
+                  fi
+                  git config user.name "sentinel[bot]"
+                  git config user.email "sentinel@users.noreply.github.com"
+                  git add docs/sentinel-state.json
+                  last=$(jq -r '.lastBlock' docs/sentinel-state.json)
+                  git commit -m "sentinel: verified through block ${last} [skip ci]"
+                  git push
