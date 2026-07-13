@@ -111,6 +111,29 @@ git commit -s -m "your message"
 
 This adds a `Signed-off-by: Your Name <you@example.com>` line.
 
+## Releasing (maintainers)
+
+Releases publish to [crates.io](https://crates.io/crates/hiero-streams) from
+CI, never from a laptop — the publish token lives only as the org-owned
+`TOKEN_STREAMS_RS` repository secret, so no maintainer needs it locally. To
+cut a release:
+
+1. Bump `version` in `Cargo.toml` and land it on `main`.
+2. Tag the release commit with a **matching** `v` tag and push it:
+
+   ```sh
+   git tag -s v0.1.0 -m "hiero-streams 0.1.0"
+   git push origin v0.1.0
+   ```
+
+3. The [`release.yml`](.github/workflows/release.yml) workflow checks the tag
+   equals the `Cargo.toml` version, then runs `cargo publish`. Watch it in the
+   Actions tab.
+
+The tag must equal the crate version — a mismatch fails the workflow instead
+of publishing the wrong one. A manual `workflow_dispatch` run is the fallback
+if you ever need to publish without a tag.
+
 ## License
 
 By contributing, you agree that your contributions are licensed under
