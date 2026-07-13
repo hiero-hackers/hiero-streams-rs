@@ -57,6 +57,11 @@ updates:
             update-types: ["version-update:semver-major"]
           - dependency-name: "napi-build"
             update-types: ["version-update:semver-major"]
+          # ureq 3.x rewrote its API (http-crate types, a new request
+          # builder), so adopting it is a code migration in attest.rs and
+          # sentinel.rs — a deliberate task, not an unattended bump.
+          - dependency-name: "ureq"
+            update-types: ["version-update:semver-major"]
 
     # ── Fuzz targets (detached cargo-fuzz workspace) ──
     - package-ecosystem: cargo
@@ -78,6 +83,12 @@ updates:
             update-types:
                 ["version-update:semver-major", "version-update:semver-minor"]
           - dependency-name: "prost-build"
+            update-types:
+                ["version-update:semver-major", "version-update:semver-minor"]
+          # sha2 minor is held here too — the fuzz workspace shares the
+          # crate's hashing, and adopting 0.11 means the coordinated rsa
+          # upgrade (see the root workspace note).
+          - dependency-name: "sha2"
             update-types:
                 ["version-update:semver-major", "version-update:semver-minor"]
 

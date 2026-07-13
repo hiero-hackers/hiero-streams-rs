@@ -277,10 +277,8 @@ fn scan_block(bytes: &[u8]) -> Result<ScannedBlock, Error> {
                             block_signature = Some(sig);
                         }
                     }
-                    Some(Item::SignedTransaction(tx_bytes)) => {
-                        if bootstrap.is_none() {
-                            bootstrap = bootstrap_from(&tx_bytes);
-                        }
+                    Some(Item::SignedTransaction(tx_bytes)) if bootstrap.is_none() => {
+                        bootstrap = bootstrap_from(&tx_bytes);
                     }
                     _ => {}
                 }
