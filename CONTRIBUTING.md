@@ -82,6 +82,15 @@ expected rigor.
   network. Keep that boundary.
 - Vendored protos (`proto/`, `proto-hapi/`) are reviewed copies, not
   submodules — record the source commit when updating `proto-hapi/`.
+- **Some dependency versions are load-bearing** and are held by
+  [`dependabot.yml`](.github/dependabot.yml), which explains each:
+  **arkworks stays on 0.4** (its 0.4 `expand_message_xmd` and wire
+  format are what make proof verification byte-match the network —
+  0.5+ would silently break it); **prost, sha2, and napi majors are
+  manual** (they regenerate proto code, shift the RustCrypto/`rsa`
+  pairing, or change the binding ABI). Patch bumps flow automatically;
+  those minors/majors are deliberate, tested upgrades — not unattended
+  ones.
 
 ## Pull requests
 
