@@ -48,7 +48,7 @@ hex = "0.4"
 thiserror = "2"
 serde_json = "1"
 ureq = { version = "2", optional = true }
-parquet = { version = "53", default-features = false, features = ["zstd"], optional = true }
+parquet = { version = "59", default-features = false, features = ["zstd"], optional = true }
 # block-proofs only. Arkworks is deliberate: the proof wire format IS
 # arkworks CanonicalSerialize (a "minimal" blstrs/halo2curves stack was
 # spiked at the same crate count, 3× the build time, and no
