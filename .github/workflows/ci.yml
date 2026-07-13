@@ -25,7 +25,7 @@ jobs:
               with:
                   components: rustfmt, clippy
 
-            - uses: Swatinem/rust-cache@f13886b937689c021905a6b90929199931d60db1 # v2.8.1
+            - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
 
             - run: cargo fmt --check
             - run: cargo clippy --all-targets -- -D warnings
@@ -56,7 +56,7 @@ jobs:
             - name: Install protoc
               run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
             - uses: dtolnay/rust-toolchain@633be07371d2bfc430534a728ba2e67cd3082b78 # 1.82
-            - uses: Swatinem/rust-cache@f13886b937689c021905a6b90929199931d60db1 # v2.8.1
+            - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
             - run: cargo check --all-features
 
     deny:
@@ -86,7 +86,7 @@ jobs:
             - name: Install protoc
               run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
             - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
-            - uses: Swatinem/rust-cache@f13886b937689c021905a6b90929199931d60db1 # v2.8.1
+            - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
             - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
               with:
                   node-version: 20
