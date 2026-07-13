@@ -47,7 +47,7 @@ rsa = { version = "0.9", features = ["sha2"] }
 hex = "0.4"
 thiserror = "2"
 serde_json = "1"
-ureq = { version = "2", optional = true }
+ureq = { version = "3", optional = true }
 parquet = { version = "53", default-features = false, features = ["zstd"], optional = true }
 # block-proofs only. Arkworks is deliberate: the proof wire format IS
 # arkworks CanonicalSerialize (a "minimal" blstrs/halo2curves stack was
