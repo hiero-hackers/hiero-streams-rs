@@ -57,7 +57,7 @@ parquet = { version = "53", default-features = false, features = ["zstd"], optio
 # expand_message_xmd behavior.
 ark-bn254 = { version = "0.4", optional = true }
 ark-ed-on-bn254 = { version = "0.4", optional = true }
-ark-bls12-381 = { version = "0.4", optional = true }
+ark-bls12-381 = { version = "0.6", optional = true }
 ark-ec = { version = "0.4", optional = true }
 ark-ff = { version = "0.4", optional = true }
 ark-serialize = { version = "0.4", features = ["derive"], optional = true }
