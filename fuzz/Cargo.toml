@@ -43,3 +43,9 @@ name = "parse_proof"
 path = "fuzz_targets/parse_proof.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "verify_proof"
+path = "fuzz_targets/verify_proof.rs"
+test = false
+doc = false
