@@ -258,6 +258,72 @@ fn wraps_rejects_tampered_ledger_id() {
     assert!(!checks.all_passed());
 }
 
+/// Regression for a single-byte corruption of the WRAPS suffix panicking
+/// instead of returning `Err` (arkworks 0.4.2's `[T; N]` deserialization
+/// unwraps on malformed elements — see `wraps.rs`'s `deserialize_fixed_array`).
+/// Strided rather than exhaustive: each corrupted byte that still
+/// deserializes runs the full Groth16 + KZG pairing check, which is slow
+/// in an unoptimized test build, and a stride of 16 still lands on the
+/// leading byte of every field in the suffix's array-typed tail.
+#[test]
+fn wraps_never_panics_on_corrupt_suffix_byte() {
+    let bootstrap = genesis_bootstrap();
+    let bytes = fs::read(fixtures_dir().join("467.blk.gz")).expect("wraps fixture");
+    let material = extract_proof_material(&bytes).expect("wraps material");
+
+    for position in (0..material.layout.suffix.len()).step_by(16) {
+        let mut layout = material.layout.clone();
+        layout.suffix[position] ^= 0xFF;
+        let _ = verify_wraps(&layout, &bootstrap);
+    }
+}
+
+/// Same regression, but corrupting both fixed-size array fields at once
+/// (`kzg_proofs` at suffix offset 448 and `kzg_challenges` at offset
+/// 640 — see the byte-layout comment above `deserialize_fixed_array` in
+/// wraps.rs). A single-field corruption already can't panic after the
+/// fix, but nothing guarantees the two fields are deserialized
+/// independently, so this pins that a simultaneous double corruption
+/// is equally safe.
+#[test]
+fn wraps_never_panics_on_corrupt_suffix_both_array_fields() {
+    let bootstrap = genesis_bootstrap();
+    let bytes = fs::read(fixtures_dir().join("467.blk.gz")).expect("wraps fixture");
+    let material = extract_proof_material(&bytes).expect("wraps material");
+
+    for byte_in_field in 0..64usize {
+        let mut layout = material.layout.clone();
+        layout.suffix[448 + byte_in_field] ^= 0xFF; // kzg_proofs
+        layout.suffix[640 + (byte_in_field % 64)] ^= 0xFF; // kzg_challenges
+        let _ = verify_wraps(&layout, &bootstrap);
+    }
+}
+
+/// A forged huge length prefix on one of the WRAPS proof's internal
+/// `Vec<Fr>`/`Vec<G1Affine>` fields (arkworks encodes these with an
+/// 8-byte LE length, no cap) must not hang or exhaust memory — it
+/// should fail fast once the reader runs out of the suffix's fixed 704
+/// bytes. `z_0`'s length prefix sits at suffix offset 32 (see the
+/// byte-layout comment above `deserialize_fixed_array` in wraps.rs).
+#[test]
+fn wraps_rejects_forged_huge_vector_length_without_hanging() {
+    let bootstrap = genesis_bootstrap();
+    let bytes = fs::read(fixtures_dir().join("467.blk.gz")).expect("wraps fixture");
+    let material = extract_proof_material(&bytes).expect("wraps material");
+
+    let mut layout = material.layout.clone();
+    layout.suffix[32..40].copy_from_slice(&u64::MAX.to_le_bytes());
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(verify_wraps(&layout, &bootstrap));
+    });
+    let result = rx
+        .recv_timeout(std::time::Duration::from_secs(10))
+        .expect("verify_wraps hung on a forged huge vector length");
+    assert!(result.is_err(), "forged length must not parse as valid");
+}
+
 /// A threshold signature over a different message must fail exactly at
 /// the BLS pairing check.
 #[test]

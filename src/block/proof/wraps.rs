@@ -26,7 +26,7 @@ use ark_bn254::{Bn254, Fq, Fr, G1Affine, G1Projective, G2Affine};
 use ark_ec::pairing::Pairing;
 use ark_ec::{AffineRepr, CurveGroup};
 use ark_ff::{BigInteger, One, PrimeField, Zero};
-use ark_serialize::{CanonicalDeserialize, Compress, Validate};
+use ark_serialize::{CanonicalDeserialize, Compress, Read, SerializationError, Valid, Validate};
 
 const SUFFIX_LENGTH: usize = 704;
 const VERIFIER_PARAM_LENGTH: usize = 1768;
@@ -65,7 +65,6 @@ struct KzgEvalProof {
     proof: G1Affine,
 }
 
-#[derive(CanonicalDeserialize)]
 struct EthProof {
     a: G1Affine,
     b: G2Affine,
@@ -74,6 +73,60 @@ struct EthProof {
     cm_t: G1Affine,
     r: Fr,
     kzg_challenges: [Fr; 2],
+}
+
+// ark-serialize 0.4.2's blanket `CanonicalDeserialize` impl for `[T; N]`
+// (impls.rs) builds the array with `core::array::from_fn(|_| {
+// T::deserialize_with_mode(..).unwrap() })` — an `unwrap()` on
+// attacker-controlled bytes, so a malformed element (e.g. a curve point
+// not on the curve) panics instead of returning `Err`. `EthProof` has
+// two fixed-size array fields, so it can't use `#[derive(CanonicalDeserialize)]`
+// as-is; this hand-written impl mirrors what the derive would generate,
+// but deserializes array elements with a `?`-propagating loop instead of
+// going through the buggy blanket impl.
+fn deserialize_fixed_array<T: CanonicalDeserialize, R: Read, const N: usize>(
+    mut reader: R,
+    compress: Compress,
+    validate: Validate,
+) -> Result<[T; N], SerializationError> {
+    let mut values = Vec::with_capacity(N);
+    for _ in 0..N {
+        values.push(T::deserialize_with_mode(&mut reader, compress, validate)?);
+    }
+    Ok(values
+        .try_into()
+        .unwrap_or_else(|_| unreachable!("exactly N elements pushed above")))
+}
+
+impl Valid for EthProof {
+    fn check(&self) -> Result<(), SerializationError> {
+        self.a.check()?;
+        self.b.check()?;
+        self.c.check()?;
+        Valid::batch_check(self.kzg_proofs.iter())?;
+        self.cm_t.check()?;
+        self.r.check()?;
+        Valid::batch_check(self.kzg_challenges.iter())?;
+        Ok(())
+    }
+}
+
+impl CanonicalDeserialize for EthProof {
+    fn deserialize_with_mode<R: Read>(
+        mut reader: R,
+        compress: Compress,
+        validate: Validate,
+    ) -> Result<Self, SerializationError> {
+        Ok(Self {
+            a: CanonicalDeserialize::deserialize_with_mode(&mut reader, compress, validate)?,
+            b: CanonicalDeserialize::deserialize_with_mode(&mut reader, compress, validate)?,
+            c: CanonicalDeserialize::deserialize_with_mode(&mut reader, compress, validate)?,
+            kzg_proofs: deserialize_fixed_array(&mut reader, compress, validate)?,
+            cm_t: CanonicalDeserialize::deserialize_with_mode(&mut reader, compress, validate)?,
+            r: CanonicalDeserialize::deserialize_with_mode(&mut reader, compress, validate)?,
+            kzg_challenges: deserialize_fixed_array(&mut reader, compress, validate)?,
+        })
+    }
 }
 
 #[derive(CanonicalDeserialize)]
