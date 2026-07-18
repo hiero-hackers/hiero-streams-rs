@@ -1,4 +1,4 @@
-# @hiero-streams/node
+# @hiero-hackers/streams-node
 
 Node.js bindings for [`hiero-streams`](https://github.com/hiero-hackers/hiero-streams-rs)
 — parse and cryptographically verify Hedera consensus streams (v6 record
@@ -13,10 +13,23 @@ across languages; for raw throughput, use the Rust crate directly (the
 JSON crossing costs more than the parse — see the main README's
 benchmark).
 
+## Install
+
+Published on the GitHub Packages npm registry with prebuilt binaries for
+Linux (x64/arm64), macOS (x64/arm64), and Windows (x64) — no Rust toolchain
+needed. GitHub's registry requires a `read:packages` token even for public
+packages:
+
+```sh
+npm config set @hiero-hackers:registry https://npm.pkg.github.com
+npm config set //npm.pkg.github.com/:_authToken "$(gh auth token)"
+npm install @hiero-hackers/streams-node
+```
+
 ## API
 
 ```js
-const b = require("@hiero-streams/node");
+const b = require("@hiero-hackers/streams-node");
 
 // Parse — returns a JSON string; JSON.parse on the JS side.
 const record = JSON.parse(b.parseRecordFileJson(rcdGzBuffer)); // v6 .rcd[.gz]

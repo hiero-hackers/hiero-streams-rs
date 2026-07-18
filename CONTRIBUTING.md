@@ -113,12 +113,15 @@ This adds a `Signed-off-by: Your Name <you@example.com>` line.
 
 ## Releasing (maintainers)
 
-Releases publish to [crates.io](https://crates.io/crates/hiero-streams) from
-CI, never from a laptop — the publish token lives only as the org-owned
-`TOKEN_STREAMS_RS` repository secret, so no maintainer needs it locally. To
-cut a release:
+Releases publish to [crates.io](https://crates.io/crates/hiero-streams) and
+the Node binding (`@hiero-hackers/streams-node`, prebuilt binaries) to the
+GitHub Packages npm registry, from CI, never from a laptop. The crates.io
+token lives only as the org-owned `TOKEN_STREAMS_RS` repository secret, so
+no maintainer needs it locally; npm publishing uses the workflow's own
+`GITHUB_TOKEN` (no standing secret at all). To cut a release:
 
-1. Bump `version` in `Cargo.toml` and land it on `main`.
+1. Bump `version` in `Cargo.toml` **and** `bindings/node/package.json`
+   (lockstep), and land it on `main`.
 2. Tag the release commit with a **matching** `v` tag and push it:
 
    ```sh
@@ -127,12 +130,22 @@ cut a release:
    ```
 
 3. The [`release.yml`](.github/workflows/release.yml) workflow checks the tag
-   equals the `Cargo.toml` version, then runs `cargo publish`. Watch it in the
-   Actions tab.
+   equals both versions, publishes the crate, builds the binding on all five
+   platforms, and publishes the npm package. Watch it in the Actions tab.
 
-The tag must equal the crate version — a mismatch fails the workflow instead
-of publishing the wrong one. A manual `workflow_dispatch` run is the fallback
-if you ever need to publish without a tag.
+The tag must equal the crate and binding versions — a mismatch fails the
+workflow instead of publishing the wrong one. The crate and npm halves are
+independent, so a re-run publishes whichever half is still missing. A manual
+`workflow_dispatch` run is the fallback if you ever need to publish without
+a tag.
+
+The crate is owned on crates.io by the
+[LFDT bot account](https://crates.io/users/lfdt-bot) — institutional custody
+under Linux Foundation Decentralized Trust, so ownership never rests with a
+single personal account. Owner changes, and migrating crates.io auth to
+[Trusted Publishing](https://crates.io/docs/trusted-publishing) (OIDC,
+which would retire `TOKEN_STREAMS_RS`), go through LFDT: only a crate owner
+can act on the crate's Settings page.
 
 ## License
 
