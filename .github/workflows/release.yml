@@ -75,10 +75,11 @@ jobs:
                 include:
                     - os: ubuntu-24.04-arm
                       target: linux-arm64-gnu
-                    - os: macos-13
-                      target: darwin-x64
                     - os: macos-latest
                       target: darwin-arm64
+                    - os: macos-latest
+                      target: darwin-x64
+                      rust-target: x86_64-apple-darwin
                     - os: windows-latest
                       target: win32-x64-msvc
                 # linux-x64-gnu is built by the npm-publish job itself (it
@@ -108,9 +109,18 @@ jobs:
 
             - name: Build native binding
               working-directory: bindings/node
-              run: npm ci && npm run build
+              shell: bash
+              run: |
+                  npm ci
+                  if [ -n "${{ matrix.rust-target }}" ]; then
+                      rustup target add "${{ matrix.rust-target }}"
+                      npx napi build --release --platform --target "${{ matrix.rust-target }}"
+                  else
+                      npm run build
+                  fi
 
             - name: Differential test on this platform
+              if: matrix.rust-target == null
               working-directory: bindings/node
               run: npm test
 
