@@ -12,7 +12,10 @@ use serde_json::{json, Map, Value};
 
 fn transaction_value(t: &ParsedTransaction) -> Value {
     let mut value = Map::from_iter([
-        ("consensusTimestamp".to_string(), json!(t.consensus_timestamp)),
+        (
+            "consensusTimestamp".to_string(),
+            json!(t.consensus_timestamp),
+        ),
         ("day".to_string(), json!(t.day)),
         ("payer".to_string(), json!(t.payer)),
         ("transactionId".to_string(), json!(t.transaction_id)),
@@ -25,18 +28,26 @@ fn transaction_value(t: &ParsedTransaction) -> Value {
         ),
         (
             "transfers".to_string(),
-            json!(t.transfers.iter().map(|l| json!({
-                "account": l.account,
-                "amount": l.amount.to_string(),
-            })).collect::<Vec<_>>()),
+            json!(t
+                .transfers
+                .iter()
+                .map(|l| json!({
+                    "account": l.account,
+                    "amount": l.amount.to_string(),
+                }))
+                .collect::<Vec<_>>()),
         ),
         (
             "tokenTransfers".to_string(),
-            json!(t.token_transfers.iter().map(|l| json!({
-                "token": l.token,
-                "account": l.account,
-                "amount": l.amount.to_string(),
-            })).collect::<Vec<_>>()),
+            json!(t
+                .token_transfers
+                .iter()
+                .map(|l| json!({
+                    "token": l.token,
+                    "account": l.account,
+                    "amount": l.amount.to_string(),
+                }))
+                .collect::<Vec<_>>()),
         ),
     ]);
     if !t.nft_transfers.is_empty() {

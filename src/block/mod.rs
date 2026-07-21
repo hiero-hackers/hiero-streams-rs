@@ -30,7 +30,8 @@ use crate::block_proto::block_item::Item;
 use crate::generated_hapi::com::hedera::hapi::block::stream::output::TransactionResult;
 use crate::generated_hapi::proto as hapi;
 use crate::transaction::{
-    day_from_seconds, AccountId, Asset, NftTransfer, ParsedTransaction, TokenId, TokenTransferLeg, TransferLeg,
+    day_from_seconds, AccountId, Asset, NftTransfer, ParsedTransaction, TokenId, TokenTransferLeg,
+    TransferLeg,
 };
 use crate::{block_proto, inflate, Error};
 use prost::Message;

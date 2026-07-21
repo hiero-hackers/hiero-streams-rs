@@ -16,7 +16,11 @@ pub struct AccountId {
 
 impl fmt::Display for AccountId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}.{}.{}", self.shard_num, self.realm_num, self.account_num)
+        write!(
+            f,
+            "{}.{}.{}",
+            self.shard_num, self.realm_num, self.account_num
+        )
     }
 }
 
@@ -30,7 +34,11 @@ pub struct TokenId {
 
 impl fmt::Display for TokenId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}.{}.{}", self.shard_num, self.realm_num, self.token_num)
+        write!(
+            f,
+            "{}.{}.{}",
+            self.shard_num, self.realm_num, self.token_num
+        )
     }
 }
 
@@ -38,16 +46,20 @@ impl fmt::Display for TokenId {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Asset {
     Hbar,
-    FungibleToken { token_id: TokenId },
-    Nft { token_id: TokenId, serial_number: u64 },
+    FungibleToken {
+        token_id: TokenId,
+    },
+    Nft {
+        token_id: TokenId,
+        serial_number: u64,
+    },
 }
 
 impl Asset {
     pub fn label(&self) -> String {
         match self {
             Asset::Hbar => "HBAR".to_string(),
-            Asset::FungibleToken { token_id } | Asset::Nft { token_id, .. } =>
-                token_id.to_string(),
+            Asset::FungibleToken { token_id } | Asset::Nft { token_id, .. } => token_id.to_string(),
         }
     }
 }

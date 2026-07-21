@@ -173,7 +173,8 @@ pub use generated_hapi::com::hedera::hapi::block::stream as block_proto;
 // Shared: the transaction vocabulary both eras produce, and its JSON.
 pub use json::{block_to_json_value, record_file_to_json_value};
 pub use transaction::{
-    day_of, AccountId, Asset, NftTransfer, ParsedTransaction, TokenId, TokenTransferLeg, TransferLeg,
+    day_of, AccountId, Asset, NftTransfer, ParsedTransaction, TokenId, TokenTransferLeg,
+    TransferLeg,
 };
 
 // Record-stream era (v6): parsing + trust.
