@@ -53,6 +53,21 @@ fn token_entity_id(id: &Option<proto::TokenId>) -> String {
     }
 }
 
+/// "payer@validStart" — the id every wallet, SDK, and explorer spells; ""
+/// when the id or either of its halves is absent (matching `payer`).
+fn transaction_id_string(id: Option<&proto::TransactionId>) -> String {
+    match id {
+        Some(id) if id.account_id.is_some() && id.transaction_valid_start.is_some() => {
+            format!(
+                "{}@{}",
+                account_entity_id(id.account_id.as_ref()),
+                consensus_string(&id.transaction_valid_start),
+            )
+        }
+        _ => String::new(),
+    }
+}
+
 fn consensus_string(ts: &Option<proto::Timestamp>) -> String {
     let (seconds, nanos) = ts.as_ref().map_or((0, 0), |t| (t.seconds, t.nanos));
     format!("{seconds}.{nanos:09}")
@@ -157,6 +172,7 @@ fn parse_item(item: &proto::RecordStreamItem) -> Option<ParsedTransaction> {
                 .as_ref()
                 .and_then(|id| id.account_id.as_ref()),
         ),
+        transaction_id: transaction_id_string(record.transaction_id.as_ref()),
         tx_type,
         result_code,
         result,

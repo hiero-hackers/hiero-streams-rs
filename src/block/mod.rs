@@ -67,6 +67,21 @@ fn token_entity_id(id: &Option<hapi::TokenId>) -> String {
     }
 }
 
+/// "payer@validStart" — the id every wallet, SDK, and explorer spells; ""
+/// when the id or either of its halves is absent (matching `payer`).
+fn transaction_id_string(id: Option<&hapi::TransactionId>) -> String {
+    match id {
+        Some(id) if id.account_id.is_some() && id.transaction_valid_start.is_some() => {
+            format!(
+                "{}@{}",
+                account_entity_id(id.account_id.as_ref()),
+                consensus_string(&id.transaction_valid_start),
+            )
+        }
+        _ => String::new(),
+    }
+}
+
 fn consensus_string(ts: &Option<hapi::Timestamp>) -> String {
     let (seconds, nanos) = ts.as_ref().map_or((0, 0), |t| (t.seconds, t.nanos));
     format!("{seconds}.{nanos:09}")
@@ -96,13 +111,12 @@ fn transaction_from(
     let result_name = hapi::ResponseCodeEnum::try_from(result_code)
         .map(|c| c.as_str_name().to_string())
         .unwrap_or_else(|_| result_code.to_string());
+    let transaction_id = body.and_then(|b| b.transaction_id.as_ref());
     ParsedTransaction {
         day: day_from_seconds(consensus_seconds),
         consensus_timestamp,
-        payer: account_entity_id(
-            body.and_then(|b| b.transaction_id.as_ref())
-                .and_then(|id| id.account_id.as_ref()),
-        ),
+        payer: account_entity_id(transaction_id.and_then(|id| id.account_id.as_ref())),
+        transaction_id: transaction_id_string(transaction_id),
         tx_type: body
             .and_then(|b| b.data.as_ref())
             .map(oneof_case_name)

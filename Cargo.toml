@@ -3,7 +3,7 @@ members = [".", "bindings/node"]
 
 [package]
 name = "hiero-streams"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2021"
 # Option::is_none_or (1.82) is the newest std API used; checked by CI's msrv
 # job and clippy's incompatible_msrv lint.

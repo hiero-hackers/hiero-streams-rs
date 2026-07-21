@@ -15,6 +15,7 @@ fn transaction_value(t: &ParsedTransaction) -> Value {
         "consensusTimestamp": t.consensus_timestamp,
         "day": t.day,
         "payer": t.payer,
+        "transactionId": t.transaction_id,
         "type": t.tx_type,
         "resultCode": t.result_code,
         "result": t.result,
