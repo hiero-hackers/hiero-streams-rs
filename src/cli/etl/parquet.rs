@@ -170,6 +170,20 @@ pub(super) fn write_day(
                     token: Some(leg.token.clone()),
                 });
             }
+            for leg in &tx.nft_transfers {
+                legs.push(LegRow {
+                    consensus_timestamp: tx.consensus_timestamp.clone(),
+                    account: leg.sender.to_string(),
+                    amount: -1,
+                    token: Some(leg.asset.to_string()),
+                });
+                legs.push(LegRow {
+                    consensus_timestamp: tx.consensus_timestamp.clone(),
+                    account: leg.receiver.to_string(),
+                    amount: 1,
+                    token: Some(leg.asset.to_string()),
+                });
+            }
         }
         let leg_dir = format!("{out}/transfers/day={day}");
         fs::create_dir_all(&leg_dir)?;

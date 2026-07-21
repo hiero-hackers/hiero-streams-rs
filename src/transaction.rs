@@ -4,6 +4,67 @@
 //! same structs, so downstream consumers (`json`, the CLI, the ETL)
 //! don't care which era a transaction came from.
 
+use std::fmt;
+
+/// A Hedera entity identifier in `shard.realm.num` form.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AccountId {
+    pub shard_num: i64,
+    pub realm_num: i64,
+    pub account_num: i64,
+}
+
+impl fmt::Display for AccountId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}.{}.{}", self.shard_num, self.realm_num, self.account_num)
+    }
+}
+
+/// A token identifier in `shard.realm.num` form.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TokenId {
+    pub shard_num: i64,
+    pub realm_num: i64,
+    pub token_num: i64,
+}
+
+impl fmt::Display for TokenId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}.{}.{}", self.shard_num, self.realm_num, self.token_num)
+    }
+}
+
+/// An on-ledger asset: HBAR, a fungible token, or a single NFT serial.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Asset {
+    Hbar,
+    FungibleToken { token_id: TokenId },
+    Nft { token_id: TokenId, serial_number: u64 },
+}
+
+impl Asset {
+    pub fn label(&self) -> String {
+        match self {
+            Asset::Hbar => "HBAR".to_string(),
+            Asset::FungibleToken { token_id } | Asset::Nft { token_id, .. } =>
+                token_id.to_string(),
+        }
+    }
+}
+
+impl fmt::Display for Asset {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Asset::Hbar => f.write_str("HBAR"),
+            Asset::FungibleToken { token_id } => write!(f, "{token_id}"),
+            Asset::Nft {
+                token_id,
+                serial_number,
+            } => write!(f, "{token_id}#{serial_number}"),
+        }
+    }
+}
+
 /// One HBAR transfer leg (fee legs included, as on-ledger).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransferLeg {
@@ -19,6 +80,14 @@ pub struct TokenTransferLeg {
     pub token: String,
     pub account: String,
     pub amount: i64,
+}
+
+/// One NFT transfer leg.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NftTransfer {
+    pub sender: AccountId,
+    pub receiver: AccountId,
+    pub asset: Asset,
 }
 
 /// One transaction as parsed from either era's stream — the canonical
@@ -51,6 +120,7 @@ pub struct ParsedTransaction {
     pub charged_fee_tinybar: u64,
     pub transfers: Vec<TransferLeg>,
     pub token_transfers: Vec<TokenTransferLeg>,
+    pub nft_transfers: Vec<NftTransfer>,
 }
 
 /// "seconds.nanos" → UTC day "YYYY-MM-DD" (civil-from-days algorithm —

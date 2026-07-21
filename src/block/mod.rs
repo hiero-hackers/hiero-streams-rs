@@ -29,9 +29,12 @@ pub mod proof;
 use crate::block_proto::block_item::Item;
 use crate::generated_hapi::com::hedera::hapi::block::stream::output::TransactionResult;
 use crate::generated_hapi::proto as hapi;
-use crate::transaction::{day_from_seconds, ParsedTransaction, TokenTransferLeg, TransferLeg};
+use crate::transaction::{
+    day_from_seconds, AccountId, Asset, NftTransfer, ParsedTransaction, TokenId, TokenTransferLeg, TransferLeg,
+};
 use crate::{block_proto, inflate, Error};
 use prost::Message;
+use std::convert::TryFrom;
 
 /// A parsed block-stream block, shaped to mirror [`crate::ParsedRecordFile`].
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -60,10 +63,46 @@ fn account_entity_id(id: Option<&hapi::AccountId>) -> String {
     }
 }
 
+fn account_id(id: Option<&hapi::AccountId>) -> AccountId {
+    match id {
+        None => AccountId {
+            shard_num: 0,
+            realm_num: 0,
+            account_num: 0,
+        },
+        Some(a) => {
+            let num = match &a.account {
+                Some(hapi::account_id::Account::AccountNum(n)) => *n,
+                _ => 0,
+            };
+            AccountId {
+                shard_num: a.shard_num,
+                realm_num: a.realm_num,
+                account_num: num,
+            }
+        }
+    }
+}
+
 fn token_entity_id(id: &Option<hapi::TokenId>) -> String {
     match id {
         None => String::new(),
         Some(t) => format!("{}.{}.{}", t.shard_num, t.realm_num, t.token_num),
+    }
+}
+
+fn token_id(id: &Option<hapi::TokenId>) -> TokenId {
+    match id {
+        None => TokenId {
+            shard_num: 0,
+            realm_num: 0,
+            token_num: 0,
+        },
+        Some(t) => TokenId {
+            shard_num: t.shard_num,
+            realm_num: t.realm_num,
+            token_num: t.token_num,
+        },
     }
 }
 
@@ -146,6 +185,21 @@ fn transaction_from(
                     token: token.clone(),
                     account: account_entity_id(leg.account_id.as_ref()),
                     amount: leg.amount,
+                })
+            })
+            .collect(),
+        nft_transfers: result
+            .token_transfer_lists
+            .iter()
+            .flat_map(|list| {
+                let token_id = token_id(&list.token);
+                list.nft_transfers.iter().map(move |leg| NftTransfer {
+                    sender: account_id(leg.sender_account_id.as_ref()),
+                    receiver: account_id(leg.receiver_account_id.as_ref()),
+                    asset: Asset::Nft {
+                        token_id,
+                        serial_number: u64::try_from(leg.serial_number).unwrap_or(0),
+                    },
                 })
             })
             .collect(),

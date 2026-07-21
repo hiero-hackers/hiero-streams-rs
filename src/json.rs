@@ -8,28 +8,54 @@
 //! silently lose precision.
 
 use crate::{ParsedBlock, ParsedRecordFile, ParsedTransaction};
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 
 fn transaction_value(t: &ParsedTransaction) -> Value {
-    json!({
-        "consensusTimestamp": t.consensus_timestamp,
-        "day": t.day,
-        "payer": t.payer,
-        "transactionId": t.transaction_id,
-        "type": t.tx_type,
-        "resultCode": t.result_code,
-        "result": t.result,
-        "chargedFeeTinybar": t.charged_fee_tinybar.to_string(),
-        "transfers": t.transfers.iter().map(|l| json!({
-            "account": l.account,
-            "amount": l.amount.to_string(),
-        })).collect::<Vec<_>>(),
-        "tokenTransfers": t.token_transfers.iter().map(|l| json!({
-            "token": l.token,
-            "account": l.account,
-            "amount": l.amount.to_string(),
-        })).collect::<Vec<_>>(),
-    })
+    let mut value = Map::from_iter([
+        ("consensusTimestamp".to_string(), json!(t.consensus_timestamp)),
+        ("day".to_string(), json!(t.day)),
+        ("payer".to_string(), json!(t.payer)),
+        ("transactionId".to_string(), json!(t.transaction_id)),
+        ("type".to_string(), json!(t.tx_type)),
+        ("resultCode".to_string(), json!(t.result_code)),
+        ("result".to_string(), json!(t.result)),
+        (
+            "chargedFeeTinybar".to_string(),
+            json!(t.charged_fee_tinybar.to_string()),
+        ),
+        (
+            "transfers".to_string(),
+            json!(t.transfers.iter().map(|l| json!({
+                "account": l.account,
+                "amount": l.amount.to_string(),
+            })).collect::<Vec<_>>()),
+        ),
+        (
+            "tokenTransfers".to_string(),
+            json!(t.token_transfers.iter().map(|l| json!({
+                "token": l.token,
+                "account": l.account,
+                "amount": l.amount.to_string(),
+            })).collect::<Vec<_>>()),
+        ),
+    ]);
+    if !t.nft_transfers.is_empty() {
+        value.insert(
+            "nftTransfers".to_string(),
+            json!(t.nft_transfers.iter().map(|l| json!({
+                "sender": l.sender.to_string(),
+                "receiver": l.receiver.to_string(),
+                "asset": {
+                    "tokenId": l.asset.label(),
+                    "serialNumber": match l.asset {
+                        crate::transaction::Asset::Nft { serial_number, .. } => serial_number.to_string(),
+                        _ => String::new(),
+                    },
+                },
+            })).collect::<Vec<_>>()),
+        );
+    }
+    Value::Object(value)
 }
 
 /// Serialize a parsed block into the canonical shape (same

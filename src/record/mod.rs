@@ -13,9 +13,13 @@
 
 pub mod verify;
 
-use crate::transaction::{day_from_seconds, ParsedTransaction, TokenTransferLeg, TransferLeg};
+use crate::transaction::{
+    day_from_seconds, AccountId, Asset, NftTransfer, ParsedTransaction, TokenId, TokenTransferLeg,
+    TransferLeg,
+};
 use crate::{inflate, proto, Error};
 use prost::Message;
+use std::convert::TryFrom;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -46,10 +50,46 @@ fn account_entity_id(id: Option<&proto::AccountId>) -> String {
     }
 }
 
+fn account_id(id: Option<&proto::AccountId>) -> AccountId {
+    match id {
+        None => AccountId {
+            shard_num: 0,
+            realm_num: 0,
+            account_num: 0,
+        },
+        Some(a) => {
+            let num = match &a.account {
+                Some(proto::account_id::Account::AccountNum(n)) => *n,
+                _ => 0,
+            };
+            AccountId {
+                shard_num: a.shard_num,
+                realm_num: a.realm_num,
+                account_num: num,
+            }
+        }
+    }
+}
+
 fn token_entity_id(id: &Option<proto::TokenId>) -> String {
     match id {
         None => String::new(),
         Some(t) => format!("{}.{}.{}", t.shard_num, t.realm_num, t.token_num),
+    }
+}
+
+fn token_id(id: &Option<proto::TokenId>) -> TokenId {
+    match id {
+        None => TokenId {
+            shard_num: 0,
+            realm_num: 0,
+            token_num: 0,
+        },
+        Some(t) => TokenId {
+            shard_num: t.shard_num,
+            realm_num: t.realm_num,
+            token_num: t.token_num,
+        },
     }
 }
 
@@ -163,6 +203,22 @@ fn parse_item(item: &proto::RecordStreamItem) -> Option<ParsedTransaction> {
         })
         .collect();
 
+    let nft_transfers = record
+        .token_transfer_lists
+        .iter()
+        .flat_map(|list| {
+            let token_id = token_id(&list.token);
+            list.nft_transfers.iter().map(move |leg| NftTransfer {
+                sender: account_id(leg.sender_account_id.as_ref()),
+                receiver: account_id(leg.receiver_account_id.as_ref()),
+                asset: Asset::Nft {
+                    token_id,
+                    serial_number: u64::try_from(leg.serial_number).unwrap_or(0),
+                },
+            })
+        })
+        .collect();
+
     Some(ParsedTransaction {
         day: day_from_seconds(consensus_seconds),
         consensus_timestamp,
@@ -179,6 +235,7 @@ fn parse_item(item: &proto::RecordStreamItem) -> Option<ParsedTransaction> {
         charged_fee_tinybar: record.transaction_fee,
         transfers,
         token_transfers,
+        nft_transfers,
     })
 }
 
