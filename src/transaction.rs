@@ -34,6 +34,11 @@ pub struct ParsedTransaction {
     pub day: String,
     /// Fee payer, "0.0.123" ("" when the record carries no id)
     pub payer: String,
+    /// The transaction id, "0.0.123@seconds.nanos" — the payer plus the
+    /// validStart timestamp, exactly as wallets, SDKs, and explorers spell
+    /// it ("" when the stream carries no id). Child and scheduled
+    /// transactions share their parent's base id, as on the mirror node.
+    pub transaction_id: String,
     /// Transaction type: the TransactionBody `data` oneof case in
     /// lowerCamelCase, e.g. "cryptoTransfer", "contractCall".
     /// "unknown" when the body cannot be decoded.

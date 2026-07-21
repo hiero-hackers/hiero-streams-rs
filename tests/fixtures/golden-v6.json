@@ -1,35 +1,36 @@
 {
   "2022-07-13T08_46_08.041986003Z.rcd.gz": {
-    "version": 6,
     "blockNumber": "5",
     "hapiVersion": "0.28.0",
     "transactions": [
       {
+        "chargedFeeTinybar": "0",
         "consensusTimestamp": "1657701968.041986003",
         "day": "2022-07-13",
         "payer": "0.0.57",
-        "type": "fileUpdate",
-        "resultCode": 22,
         "result": "SUCCESS",
-        "chargedFeeTinybar": "0",
+        "resultCode": 22,
+        "tokenTransfers": [],
+        "transactionId": "0.0.57@1657701907.000000142",
         "transfers": [],
-        "tokenTransfers": []
+        "type": "fileUpdate"
       }
-    ]
+    ],
+    "version": 6
   },
   "2022-07-13T08_46_11.304284003Z.rcd.gz": {
-    "version": 6,
     "blockNumber": "6",
     "hapiVersion": "0.28.0",
     "transactions": [
       {
+        "chargedFeeTinybar": "56493422",
         "consensusTimestamp": "1657701971.304284003",
         "day": "2022-07-13",
         "payer": "0.0.2",
-        "type": "contractCall",
-        "resultCode": 22,
         "result": "SUCCESS",
-        "chargedFeeTinybar": "56493422",
+        "resultCode": 22,
+        "tokenTransfers": [],
+        "transactionId": "0.0.2@1657701910.000000144",
         "transfers": [
           {
             "account": "0.0.2",
@@ -40,19 +41,21 @@
             "amount": "56493422"
           }
         ],
-        "tokenTransfers": []
+        "type": "contractCall"
       },
       {
+        "chargedFeeTinybar": "0",
         "consensusTimestamp": "1657701971.304284004",
         "day": "2022-07-13",
         "payer": "0.0.2",
-        "type": "contractCreateInstance",
-        "resultCode": 22,
         "result": "SUCCESS",
-        "chargedFeeTinybar": "0",
+        "resultCode": 22,
+        "tokenTransfers": [],
+        "transactionId": "0.0.2@1657701910.000000144",
         "transfers": [],
-        "tokenTransfers": []
+        "type": "contractCreateInstance"
       }
-    ]
+    ],
+    "version": 6
   }
 }
