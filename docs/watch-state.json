@@ -1,9 +1,9 @@
 {
- "_comment": "Last acknowledged state of the HIP-1056 cutover signals (see docs/MIGRATION.md §6). The watch-cutover workflow compares live state against this file and fails loudly on any change; after reacting, update the field(s) and commit. The *_pr_head and hip_1200_last_commit fields catch in-place revisions (a PR amended or a HIP edited while its open/closed state is unchanged still moves the port's target).",
- "checked": "2026-07-12",
+ "_comment": "Last acknowledged state of the HIP-1056 cutover signals (see docs/MIGRATION.md \u00a76). The watch-cutover workflow compares live state against this file and fails loudly on any change; after reacting, update the field(s) and commit. The *_pr_head and hip_1200_last_commit fields catch in-place revisions (a PR amended or a HIP edited while its open/closed state is unchanged still moves the port's target).",
+ "checked": "2026-07-21",
  "mirror_node_epic_13574_block_node_cutover_testing": "open",
  "mirror_node_epic_13346_wrb_cutover_support": "open",
- "block_node_latest_release": "v0.38.0",
+ "block_node_latest_release": "v0.38.1",
  "hip_1474_block_items_update_pr": "open",
  "hip_1474_block_items_update_pr_head": "efa427fa6b62",
  "hip_1200_hints_last_commit": "2e947c8d8776"
