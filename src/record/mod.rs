@@ -14,12 +14,11 @@
 pub mod verify;
 
 use crate::transaction::{
-    day_from_seconds, AccountId, Asset, NftTransfer, ParsedTransaction, TokenId, TokenTransferLeg,
+    day_from_seconds, AccountId, NftTransfer, ParsedTransaction, TokenId, TokenTransferLeg,
     TransferLeg,
 };
 use crate::{inflate, proto, Error};
 use prost::Message;
-use std::convert::TryFrom;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -50,25 +49,20 @@ fn account_entity_id(id: Option<&proto::AccountId>) -> String {
     }
 }
 
-fn account_id(id: Option<&proto::AccountId>) -> AccountId {
-    match id {
-        None => AccountId {
-            shard_num: 0,
-            realm_num: 0,
-            account_num: 0,
-        },
-        Some(a) => {
-            let num = match &a.account {
-                Some(proto::account_id::Account::AccountNum(n)) => *n,
-                _ => 0,
-            };
-            AccountId {
-                shard_num: a.shard_num,
-                realm_num: a.realm_num,
-                account_num: num,
-            }
+/// `None` stays `None` — a missing account on an NFT leg is meaningful
+/// (mint/burn/wipe), not a degenerate `0.0.0`.
+fn account_id(id: Option<&proto::AccountId>) -> Option<AccountId> {
+    id.map(|a| {
+        let num = match &a.account {
+            Some(proto::account_id::Account::AccountNum(n)) => *n,
+            _ => 0,
+        };
+        AccountId {
+            shard_num: a.shard_num,
+            realm_num: a.realm_num,
+            account_num: num,
         }
-    }
+    })
 }
 
 fn token_entity_id(id: &Option<proto::TokenId>) -> String {
@@ -207,14 +201,13 @@ fn parse_item(item: &proto::RecordStreamItem) -> Option<ParsedTransaction> {
         .token_transfer_lists
         .iter()
         .flat_map(|list| {
-            let token_id = token_id(&list.token);
+            let token = token_id(&list.token);
             list.nft_transfers.iter().map(move |leg| NftTransfer {
                 sender: account_id(leg.sender_account_id.as_ref()),
                 receiver: account_id(leg.receiver_account_id.as_ref()),
-                asset: Asset::Nft {
-                    token_id,
-                    serial_number: u64::try_from(leg.serial_number).unwrap_or(0),
-                },
+                token,
+                serial_number: leg.serial_number,
+                is_approval: leg.is_approval,
             })
         })
         .collect();

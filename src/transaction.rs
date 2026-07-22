@@ -42,41 +42,6 @@ impl fmt::Display for TokenId {
     }
 }
 
-/// An on-ledger asset: HBAR, a fungible token, or a single NFT serial.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Asset {
-    Hbar,
-    FungibleToken {
-        token_id: TokenId,
-    },
-    Nft {
-        token_id: TokenId,
-        serial_number: u64,
-    },
-}
-
-impl Asset {
-    pub fn label(&self) -> String {
-        match self {
-            Asset::Hbar => "HBAR".to_string(),
-            Asset::FungibleToken { token_id } | Asset::Nft { token_id, .. } => token_id.to_string(),
-        }
-    }
-}
-
-impl fmt::Display for Asset {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Asset::Hbar => f.write_str("HBAR"),
-            Asset::FungibleToken { token_id } => write!(f, "{token_id}"),
-            Asset::Nft {
-                token_id,
-                serial_number,
-            } => write!(f, "{token_id}#{serial_number}"),
-        }
-    }
-}
-
 /// One HBAR transfer leg (fee legs included, as on-ledger).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransferLeg {
@@ -94,12 +59,18 @@ pub struct TokenTransferLeg {
     pub amount: i64,
 }
 
-/// One NFT transfer leg.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// One NFT transfer leg. `sender`/`receiver` are `None` when the wire
+/// carries no account — a mint has no sender, a burn or wipe no receiver.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NftTransfer {
-    pub sender: AccountId,
-    pub receiver: AccountId,
-    pub asset: Asset,
+    pub sender: Option<AccountId>,
+    pub receiver: Option<AccountId>,
+    pub token: TokenId,
+    /// Serial number exactly as on the wire (valid serials are >= 1).
+    pub serial_number: i64,
+    /// True when the transfer spent an approved allowance; the sender is
+    /// then the owner that granted it, not the transaction payer.
+    pub is_approval: bool,
 }
 
 /// One transaction as parsed from either era's stream — the canonical
