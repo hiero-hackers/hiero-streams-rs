@@ -4,6 +4,44 @@
 //! same structs, so downstream consumers (`json`, the CLI, the ETL)
 //! don't care which era a transaction came from.
 
+use std::fmt;
+
+/// A Hedera entity identifier in `shard.realm.num` form.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AccountId {
+    pub shard_num: i64,
+    pub realm_num: i64,
+    pub account_num: i64,
+}
+
+impl fmt::Display for AccountId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}.{}.{}",
+            self.shard_num, self.realm_num, self.account_num
+        )
+    }
+}
+
+/// A token identifier in `shard.realm.num` form.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TokenId {
+    pub shard_num: i64,
+    pub realm_num: i64,
+    pub token_num: i64,
+}
+
+impl fmt::Display for TokenId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}.{}.{}",
+            self.shard_num, self.realm_num, self.token_num
+        )
+    }
+}
+
 /// One HBAR transfer leg (fee legs included, as on-ledger).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransferLeg {
@@ -19,6 +57,20 @@ pub struct TokenTransferLeg {
     pub token: String,
     pub account: String,
     pub amount: i64,
+}
+
+/// One NFT transfer leg. `sender`/`receiver` are `None` when the wire
+/// carries no account — a mint has no sender, a burn or wipe no receiver.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NftTransfer {
+    pub sender: Option<AccountId>,
+    pub receiver: Option<AccountId>,
+    pub token: TokenId,
+    /// Serial number exactly as on the wire (valid serials are >= 1).
+    pub serial_number: i64,
+    /// True when the transfer spent an approved allowance; the sender is
+    /// then the owner that granted it, not the transaction payer.
+    pub is_approval: bool,
 }
 
 /// One transaction as parsed from either era's stream — the canonical
@@ -51,6 +103,7 @@ pub struct ParsedTransaction {
     pub charged_fee_tinybar: u64,
     pub transfers: Vec<TransferLeg>,
     pub token_transfers: Vec<TokenTransferLeg>,
+    pub nft_transfers: Vec<NftTransfer>,
 }
 
 /// "seconds.nanos" → UTC day "YYYY-MM-DD" (civil-from-days algorithm —

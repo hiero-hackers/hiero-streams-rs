@@ -146,6 +146,45 @@ fn mainnet_files_agree_with_the_mirror_node() {
                 "{name}: token transfers differ at {}",
                 tx.consensus_timestamp
             );
+
+            // NFT legs: (token, sender, receiver, serial, approval), ""
+            // where the mirror reports null (mint/burn/wipe sides).
+            let mut ours_nft: Vec<(String, String, String, i64, bool)> = tx
+                .nft_transfers
+                .iter()
+                .map(|l| {
+                    (
+                        l.token.to_string(),
+                        l.sender.map(|a| a.to_string()).unwrap_or_default(),
+                        l.receiver.map(|a| a.to_string()).unwrap_or_default(),
+                        l.serial_number,
+                        l.is_approval,
+                    )
+                })
+                .collect();
+            let mut theirs_nft: Vec<(String, String, String, i64, bool)> = m["nft_transfers"]
+                .as_array()
+                .map(|legs| {
+                    legs.iter()
+                        .map(|l| {
+                            (
+                                l["token_id"].as_str().unwrap().to_string(),
+                                l["sender_account_id"].as_str().unwrap_or("").to_string(),
+                                l["receiver_account_id"].as_str().unwrap_or("").to_string(),
+                                l["serial_number"].as_i64().unwrap(),
+                                l["is_approval"].as_bool().unwrap_or(false),
+                            )
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            ours_nft.sort();
+            theirs_nft.sort();
+            assert_eq!(
+                ours_nft, theirs_nft,
+                "{name}: NFT transfers differ at {}",
+                tx.consensus_timestamp
+            );
         }
     }
 }

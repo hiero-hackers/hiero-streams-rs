@@ -6,7 +6,7 @@
 //! The `parquet_schemas_are_stable` test at the bottom fails loudly if they
 //! drift; change them only as a deliberate, dataset-versioned decision.
 
-use hiero_streams::ParsedTransaction;
+use hiero_streams::{NftTransfer, ParsedTransaction};
 use parquet::basic::{Compression, ZstdLevel};
 use parquet::data_type::{ByteArray, ByteArrayType, Int32Type, Int64Type};
 use parquet::file::properties::WriterProperties;
@@ -33,11 +33,37 @@ message transfers {
     optional byte_array token (UTF8);
 }";
 
+#[derive(Debug, PartialEq)]
 struct LegRow {
     consensus_timestamp: String,
     account: String,
     amount: i64,
     token: Option<String>,
+}
+
+/// NFT leg → ±1 ownership-delta rows, token "shard.realm.num#serial".
+/// A missing side (mint has no sender, burn/wipe no receiver) emits no
+/// row rather than a fabricated account.
+fn nft_leg_rows(consensus_timestamp: &str, leg: &NftTransfer) -> Vec<LegRow> {
+    let token = format!("{}#{}", leg.token, leg.serial_number);
+    let mut rows = Vec::with_capacity(2);
+    if let Some(sender) = leg.sender {
+        rows.push(LegRow {
+            consensus_timestamp: consensus_timestamp.to_string(),
+            account: sender.to_string(),
+            amount: -1,
+            token: Some(token.clone()),
+        });
+    }
+    if let Some(receiver) = leg.receiver {
+        rows.push(LegRow {
+            consensus_timestamp: consensus_timestamp.to_string(),
+            account: receiver.to_string(),
+            amount: 1,
+            token: Some(token),
+        });
+    }
+    rows
 }
 
 fn props() -> Arc<WriterProperties> {
@@ -170,6 +196,9 @@ pub(super) fn write_day(
                     token: Some(leg.token.clone()),
                 });
             }
+            for leg in &tx.nft_transfers {
+                legs.extend(nft_leg_rows(&tx.consensus_timestamp, leg));
+            }
         }
         let leg_dir = format!("{out}/transfers/day={day}");
         fs::create_dir_all(&leg_dir)?;
@@ -228,5 +257,65 @@ mod tests {
             ]
             .map(|(n, t, o)| (n.to_string(), t.to_string(), o))
         );
+    }
+
+    use hiero_streams::{AccountId, TokenId};
+
+    fn account(n: i64) -> Option<AccountId> {
+        Some(AccountId {
+            shard_num: 0,
+            realm_num: 0,
+            account_num: n,
+        })
+    }
+
+    fn nft(sender: Option<AccountId>, receiver: Option<AccountId>) -> NftTransfer {
+        NftTransfer {
+            sender,
+            receiver,
+            token: TokenId {
+                shard_num: 0,
+                realm_num: 0,
+                token_num: 5000,
+            },
+            serial_number: 7,
+            is_approval: false,
+        }
+    }
+
+    /// A full transfer is two ±1 ownership-delta rows on "token#serial".
+    #[test]
+    fn nft_transfer_makes_paired_delta_rows() {
+        let rows = nft_leg_rows("1.000000002", &nft(account(100), account(200)));
+        assert_eq!(
+            rows,
+            [
+                LegRow {
+                    consensus_timestamp: "1.000000002".into(),
+                    account: "0.0.100".into(),
+                    amount: -1,
+                    token: Some("0.0.5000#7".into()),
+                },
+                LegRow {
+                    consensus_timestamp: "1.000000002".into(),
+                    account: "0.0.200".into(),
+                    amount: 1,
+                    token: Some("0.0.5000#7".into()),
+                },
+            ]
+        );
+    }
+
+    /// Mint (no sender) and burn/wipe (no receiver) each emit only the
+    /// present side — never a fabricated "0.0.0" account row.
+    #[test]
+    fn nft_mint_and_burn_emit_one_sided_rows() {
+        let mint = nft_leg_rows("1.000000002", &nft(None, account(200)));
+        assert_eq!(mint.len(), 1);
+        assert_eq!((mint[0].account.as_str(), mint[0].amount), ("0.0.200", 1));
+
+        let burn = nft_leg_rows("1.000000002", &nft(account(100), None));
+        assert_eq!(burn.len(), 1);
+        assert_eq!((burn[0].account.as_str(), burn[0].amount), ("0.0.100", -1));
     }
 }
