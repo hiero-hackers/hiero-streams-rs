@@ -30,7 +30,9 @@ pub use hints::{verify_hints, HintsChecks};
 pub use schnorr::{verify_schnorr, SchnorrVerification};
 pub use wraps::{verify_wraps, WrapsChecks};
 
-use crate::block::material::{BlockProofMaterial, Bootstrap, ProofPath};
+use crate::block::material::{
+    recompute_block_root, BlockInclusionWitness, BlockProofMaterial, Bootstrap, ProofPath,
+};
 use crate::Error;
 
 /// Combined outcome of verifying one block's proof.
@@ -67,7 +69,56 @@ pub fn verify_block_proof(
     material: &BlockProofMaterial,
     bootstrap: &Bootstrap,
 ) -> Result<BlockProofVerification, Error> {
-    let hints = verify_hints(&material.layout, &material.block_root)?;
+    verify_proof_over_root(material, bootstrap, &material.block_root)
+}
+
+/// Verify that one transaction is included in a network-signed block:
+/// recompute the block root from the transaction bytes and their
+/// [`BlockInclusionWitness`], then verify the block proof **over the
+/// recomputed root**.
+///
+/// This is the safe path for inclusion checks. Calling
+/// [`recompute_block_root`] and [`verify_block_proof`] separately is
+/// sound only if the caller also compares the recomputed root against
+/// `material.block_root` — forgetting that comparison verifies a proof
+/// that says nothing about the transaction. This function makes the
+/// mistake unrepresentable: the hinTS threshold signature is checked
+/// against the root derived from `tx_bytes` itself, so the untrusted
+/// `material.block_root` never enters the trust path.
+///
+/// Returns `Err` when the witness does not belong to this block's
+/// material (root mismatch), and the usual proof verification outcome
+/// otherwise — the result's [`valid`](BlockProofVerification::valid)
+/// must still be checked.
+pub fn verify_inclusion(
+    tx_bytes: &[u8],
+    witness: &BlockInclusionWitness,
+    material: &BlockProofMaterial,
+    bootstrap: &Bootstrap,
+) -> Result<BlockProofVerification, Error> {
+    let recomputed = recompute_block_root(tx_bytes, witness);
+    // Diagnostic pre-check only — soundness does not depend on it. A
+    // mismatched witness would equally fail the signature check below;
+    // this turns that failure into a precise error.
+    if recomputed != material.block_root {
+        return Err(Error::Proof(
+            "inclusion witness does not recompute this block's root — \
+             the transaction is not in this block, or witness and proof \
+             material belong to different blocks"
+                .into(),
+        ));
+    }
+    verify_proof_over_root(material, bootstrap, &recomputed)
+}
+
+/// Shared tail of [`verify_block_proof`] and [`verify_inclusion`]: the
+/// hinTS check over the given root plus the scheme-specific suffix.
+fn verify_proof_over_root(
+    material: &BlockProofMaterial,
+    bootstrap: &Bootstrap,
+    block_root: &[u8; 48],
+) -> Result<BlockProofVerification, Error> {
+    let hints = verify_hints(&material.layout, block_root)?;
     let (schnorr, wraps) = match material.layout.path {
         ProofPath::AggregateSchnorr => (Some(verify_schnorr(&material.layout, bootstrap)?), None),
         ProofPath::WrapsCompressedProof => (None, Some(verify_wraps(&material.layout, bootstrap)?)),

@@ -190,13 +190,15 @@ pub use block::material::{
     block_chain_info, extract_proof_material, resolve_bootstrap, BlockChainInfo,
     BlockProofMaterial, Bootstrap, NodeContribution, ProofLayout, ProofPath,
 };
+pub use block::material::{block_inclusion_witness, recompute_block_root, BlockInclusionWitness};
 pub use block::{block_activity, parse_block, BlockActivity, ParsedBlock};
+pub use block::{fold_witness, merkle_root, witness_for, MerkleWitness, Side};
 
 // Block-stream era: proof verification (behind `block-proofs`).
 #[cfg(feature = "block-proofs")]
 pub use block::proof::{
-    verify_block_proof, verify_hints, verify_schnorr, verify_wraps, BlockProofVerification,
-    HintsChecks, SchnorrVerification, WrapsChecks,
+    verify_block_proof, verify_hints, verify_inclusion, verify_schnorr, verify_wraps,
+    BlockProofVerification, HintsChecks, SchnorrVerification, WrapsChecks,
 };
 #[cfg(feature = "block-proofs")]
 pub use json::block_proof_to_json_value;

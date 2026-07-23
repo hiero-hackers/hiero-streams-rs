@@ -22,6 +22,8 @@ pub mod material;
 mod merkle;
 mod wire;
 
+pub use merkle::{fold_witness, merkle_root, witness_for, MerkleWitness, Side};
+
 // Block proving — behind `block-proofs` (pulls in the arkworks stack).
 #[cfg(feature = "block-proofs")]
 pub mod proof;
