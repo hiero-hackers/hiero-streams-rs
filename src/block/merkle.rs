@@ -290,6 +290,13 @@ mod tests {
         }
     }
 
+    /// `merkle_root` of no leaves must equal the streaming hasher's
+    /// empty-tree root (`hash_leaf(&[])`).
+    #[test]
+    fn empty_tree_root_matches_streaming_hasher() {
+        assert_eq!(merkle_root(&[]), StreamingTreeHasher::default().root());
+    }
+
     #[test]
     fn single_leaf_witness_is_the_leaf() {
         let ls = leaves(1);

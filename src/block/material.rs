@@ -8,9 +8,9 @@
 //! hashing and hands the same bytes to prost when a typed view is
 //! needed (header, footer, proof, signed transaction).
 
-use super::merkle::{fold_witness, witness_for, MerkleWitness};
 use super::merkle::{
-    hash_internal, hash_internal_single_child, hash_leaf, StreamingTreeHasher, HASH_LENGTH,
+    fold_witness, hash_internal, hash_internal_single_child, hash_leaf, witness_for, MerkleWitness,
+    StreamingTreeHasher, HASH_LENGTH,
 };
 use super::wire::{
     scan_block_items, F_BLOCK_FOOTER, F_BLOCK_HEADER, F_BLOCK_PROOF, F_EVENT_HEADER,
@@ -123,8 +123,28 @@ pub struct BlockChainInfo {
 /// that the transaction is in a block whose root the network has signed,
 /// without shipping the block.
 ///
-/// Feed the two to [`recompute_block_root`], then hand the result to
-/// `verify_block_proof` against the resolved bootstrap.
+/// **Verify with `verify_inclusion`** (behind `block-proofs`): it
+/// recomputes the root from the transaction's leaf bytes and checks the
+/// hinTS threshold signature over that recomputed root. Composing
+/// [`recompute_block_root`] with `verify_block_proof` by hand is sound
+/// only if you also compare the recomputed root against
+/// `material.block_root` — skipping that comparison verifies a proof
+/// that says nothing about the transaction.
+///
+/// # Current limitations
+///
+/// - **No wire format yet.** The witness has no serialization, and
+///   [`BlockProofMaterial`] is only obtainable from full block bytes —
+///   today both prover and verifier need the block. The
+///   "without shipping the block" promise awaits a stable encoding for
+///   the witness/material pair (and HIP-1056's proof format is itself
+///   pre-GA — see [`ProofPath`]).
+/// - **Whole blocks only.** Filtered/redacted blocks, as HIP-1081 block
+///   nodes may serve them, are rejected rather than witnessed;
+///   supporting them means treating filtered subtrees as pre-hashed
+///   path nodes.
+/// - **O(block) per witness** — each call re-parses the block and
+///   rebuilds its trees.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct BlockInclusionWitness {

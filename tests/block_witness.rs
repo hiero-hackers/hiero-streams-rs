@@ -59,13 +59,21 @@ fn block_witnesses_recompute_the_block_root() {
         let expected = extract_proof_material(&bytes).expect(fixture).block_root;
 
         let mut count = 0usize;
-        while let Ok((tx_bytes, witness)) = block_inclusion_witness(&bytes, count) {
-            assert_eq!(
-                recompute_block_root(&tx_bytes, &witness),
-                expected,
-                "{fixture}: transaction {count} must recompute the block root"
-            );
-            count += 1;
+        loop {
+            match block_inclusion_witness(&bytes, count) {
+                Ok((tx_bytes, witness)) => {
+                    assert_eq!(
+                        recompute_block_root(&tx_bytes, &witness),
+                        expected,
+                        "{fixture}: transaction {count} must recompute the block root"
+                    );
+                    count += 1;
+                }
+                // Only the out-of-range error may end the loop — any
+                // other failure is a real bug, not the end of the block.
+                Err(e) if e.to_string().contains("out of range") => break,
+                Err(e) => panic!("{fixture}: witness for transaction {count} failed: {e}"),
+            }
         }
         assert!(
             count > 0,
@@ -109,15 +117,15 @@ fn tampering_breaks_the_recomputed_root() {
     }
 }
 
-/// The end-to-end contract: a witness-recomputed root is not just equal
-/// to the extracted root, it is the message a valid proof signs. For
-/// each fixture, recompute the root from one transaction's witness and
-/// confirm the block's own proof verifies against the resolved
-/// bootstrap over that same root.
+/// The end-to-end contract, through the safe path: `verify_inclusion`
+/// recomputes the root from one transaction's witness and verifies the
+/// hinTS threshold signature **over that recomputed root** against the
+/// resolved bootstrap — the network's own signature is the correctness
+/// anchor.
 #[cfg(feature = "block-proofs")]
 #[test]
-fn recomputed_root_carries_a_valid_proof() {
-    use hiero_streams::{resolve_bootstrap, verify_block_proof};
+fn verify_inclusion_accepts_every_fixture_transaction() {
+    use hiero_streams::{resolve_bootstrap, verify_inclusion};
 
     let genesis = fs::read(fixtures_dir().join("0.blk.gz")).expect("genesis");
 
@@ -128,16 +136,38 @@ fn recomputed_root_carries_a_valid_proof() {
             resolve_bootstrap(&material, Some(&genesis), "pass the genesis block").expect(fixture);
 
         let (tx_bytes, witness) = block_inclusion_witness(&bytes, 0).expect(fixture);
-        assert_eq!(
-            recompute_block_root(&tx_bytes, &witness),
-            material.block_root,
-            "{fixture}: witness root must equal the extracted root"
-        );
 
-        let verification = verify_block_proof(&material, &bootstrap).expect(fixture);
+        let verification =
+            verify_inclusion(&tx_bytes, &witness, &material, &bootstrap).expect(fixture);
         assert!(
             verification.valid(),
-            "{fixture}: the proof over the recomputed root must verify"
+            "{fixture}: inclusion of transaction 0 must verify"
         );
     }
+}
+
+/// A witness paired with the wrong block's proof material must be
+/// rejected before any signature work — the transaction is simply not
+/// in that block.
+#[cfg(feature = "block-proofs")]
+#[test]
+fn verify_inclusion_rejects_cross_block_witness() {
+    use hiero_streams::{resolve_bootstrap, verify_inclusion};
+
+    let genesis = fs::read(fixtures_dir().join("0.blk.gz")).expect("genesis");
+    let other = fs::read(fixtures_dir().join("1.blk.gz")).expect("other block");
+
+    let genesis_material = extract_proof_material(&genesis).expect("genesis material");
+    let bootstrap =
+        resolve_bootstrap(&genesis_material, Some(&genesis), "genesis").expect("bootstrap");
+
+    // Transaction + witness from block 1, proof material from block 0.
+    let (tx_bytes, witness) = block_inclusion_witness(&other, 0).expect("witness");
+
+    let err = verify_inclusion(&tx_bytes, &witness, &genesis_material, &bootstrap)
+        .expect_err("cross-block witness must be rejected");
+    assert!(
+        err.to_string().contains("does not recompute"),
+        "unexpected error: {err}"
+    );
 }
