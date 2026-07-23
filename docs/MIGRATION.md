@@ -132,8 +132,9 @@ Consequences for this repo:
   corpus source (v0.38.0 as of 2026-07-11, releasing frequently).
 - The `block-preview/` bucket path — format or naming changes indicate the
   preview is converging on GA.
-- Proof-format revisions — HIP-1056's block items/proofs have an open update
-  PR (hiero-improvement-proposals#1474), and hinTS (HIP-1200) could revise;
+- Proof-format revisions — HIP-1056's block items/proofs update PR
+  (hiero-improvement-proposals#1474) was closed as stagnant on 2026-07-23
+  without merging (watch for a reopen), and hinTS (HIP-1200) could revise;
   either changes the port's target.
 
 **These are automated.**
