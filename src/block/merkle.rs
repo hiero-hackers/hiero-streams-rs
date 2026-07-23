@@ -89,7 +89,7 @@ pub enum Side {
     Right,
 }
 
-/// A Merkle inclusion witness for one leaf of a [`StreamingTreeHasher`]
+/// A Merkle inclusion witness for one leaf of a `StreamingTreeHasher`
 /// tree: enough to recompute the root from the leaf alone, in `log₂(n)`
 /// hashes plus a handful of peak hashes, without shipping the tree.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -149,7 +149,7 @@ fn fold_peaks(roots: &[[u8; 48]]) -> Option<[u8; 48]> {
 }
 
 /// The merkle root over `leaves`, identical to what a
-/// [`StreamingTreeHasher`] fed the same leaves produces.
+/// `StreamingTreeHasher` fed the same leaves produces.
 pub fn merkle_root(leaves: &[[u8; 48]]) -> [u8; 48] {
     let peaks = peak_bounds(leaves.len());
     let roots: Vec<[u8; 48]> = peaks
@@ -160,14 +160,14 @@ pub fn merkle_root(leaves: &[[u8; 48]]) -> [u8; 48] {
 }
 
 /// Build the inclusion witness for the leaf at `index` in an `n`-leaf
-/// [`StreamingTreeHasher`] tree. Naive by design: it rebuilds the
-/// containing peak's path and the neighbouring peak roots offline from
-/// the leaf hashes, which is cheap (48 bytes × leaves).
-///
-/// # Panics
-/// If `index` is out of range for `leaves`.
-pub fn witness_for(leaves: &[[u8; 48]], index: usize) -> MerkleWitness {
-    assert!(index < leaves.len(), "leaf index out of range");
+/// `StreamingTreeHasher` tree, or `None` if `index` is out of range for
+/// `leaves`. Naive by design: it rebuilds the containing peak's path and
+/// the neighbouring peak roots offline from the leaf hashes, which is
+/// cheap (48 bytes × leaves).
+pub fn witness_for(leaves: &[[u8; 48]], index: usize) -> Option<MerkleWitness> {
+    if index >= leaves.len() {
+        return None;
+    }
     let peaks = peak_bounds(leaves.len());
 
     // Peak containing the leaf: the last one whose range starts at or
@@ -190,11 +190,11 @@ pub fn witness_for(leaves: &[[u8; 48]], index: usize) -> MerkleWitness {
         .map(|&(s, sz)| perfect_root(&leaves[s..s + sz]))
         .collect();
 
-    MerkleWitness {
+    Some(MerkleWitness {
         siblings,
         left_peaks,
         right_root: fold_peaks(&right_roots),
-    }
+    })
 }
 
 /// The leaf-to-root sibling path within a single perfect peak.
@@ -222,7 +222,7 @@ fn peak_path(peak_leaves: &[[u8; 48]], mut pos: usize) -> Vec<(Side, [u8; 48])> 
 }
 
 /// Recompute the tree root from a leaf and its witness. The fold mirrors
-/// [`StreamingTreeHasher::root`]: climb the peak's path, absorb the
+/// `StreamingTreeHasher::root`: climb the peak's path, absorb the
 /// pre-folded right peaks as a right child, then wrap the left peaks as
 /// left children outermost-last.
 pub fn fold_witness(leaf: [u8; 48], w: &MerkleWitness) -> [u8; 48] {
@@ -284,7 +284,7 @@ mod tests {
             let ls = leaves(n);
             let expected = streaming_root(&ls);
             for i in 0..n {
-                let w = witness_for(&ls, i);
+                let w = witness_for(&ls, i).unwrap();
                 assert_eq!(fold_witness(ls[i], &w), expected, "count {n}, index {i}");
             }
         }
@@ -293,7 +293,7 @@ mod tests {
     #[test]
     fn single_leaf_witness_is_the_leaf() {
         let ls = leaves(1);
-        let w = witness_for(&ls, 0);
+        let w = witness_for(&ls, 0).unwrap();
         assert!(w.siblings.is_empty());
         assert!(w.left_peaks.is_empty());
         assert!(w.right_root.is_none());
@@ -304,7 +304,7 @@ mod tests {
     fn tampered_leaf_fails() {
         let ls = leaves(37);
         let expected = streaming_root(&ls);
-        let w = witness_for(&ls, 11);
+        let w = witness_for(&ls, 11).unwrap();
         let mut bad = ls[11];
         bad[0] ^= 0x01;
         assert_ne!(fold_witness(bad, &w), expected);
@@ -314,7 +314,7 @@ mod tests {
     fn reordered_sibling_path_fails() {
         let ls = leaves(50);
         let expected = streaming_root(&ls);
-        let w = witness_for(&ls, 9);
+        let w = witness_for(&ls, 9).unwrap();
         assert!(w.siblings.len() >= 2, "need a path to reorder");
         let mut reordered = w.clone();
         reordered.siblings.swap(0, 1);
@@ -329,11 +329,19 @@ mod tests {
         // guarantee).
         let ls = leaves(64);
         let expected = streaming_root(&ls);
-        let mut w = witness_for(&ls, 5);
+        let mut w = witness_for(&ls, 5).unwrap();
         w.siblings[0].0 = match w.siblings[0].0 {
             Side::Left => Side::Right,
             Side::Right => Side::Left,
         };
         assert_ne!(fold_witness(ls[5], &w), expected);
+    }
+
+    #[test]
+    fn out_of_range_index_returns_none() {
+        let ls = leaves(5);
+        assert!(witness_for(&ls, 5).is_none());
+        assert!(witness_for(&ls, 99).is_none());
+        assert!(witness_for(&[], 0).is_none());
     }
 }

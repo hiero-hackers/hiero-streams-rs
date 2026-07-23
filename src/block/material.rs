@@ -116,12 +116,14 @@ pub struct BlockChainInfo {
 
 /// An inclusion witness for one signed transaction within a block: the
 /// merkle path up the `input_tree`, plus the sibling hashes needed to
-/// climb the block's fixed upper tree to the block root. Ship this and
-/// the transaction's own bytes to prove — in about a dozen hashes — that
-/// the transaction is in a block whose root the network has signed,
+/// climb the block's fixed upper tree to the block root. Ship this
+/// alongside the transaction's leaf bytes — the exact serialized
+/// `BlockItem` wire bytes that [`block_inclusion_witness`] returns, *not*
+/// the inner `SignedTransaction` — to prove, in about a dozen hashes,
+/// that the transaction is in a block whose root the network has signed,
 /// without shipping the block.
 ///
-/// Feed it to [`recompute_block_root`], then hand the result to
+/// Feed the two to [`recompute_block_root`], then hand the result to
 /// `verify_block_proof` against the resolved bootstrap.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -379,10 +381,11 @@ fn to_hash48(bytes: &[u8]) -> Result<[u8; 48], Error> {
 
 /// Build an inclusion witness for the signed transaction at
 /// `transaction_index` (0-based over the block's `SignedTransaction`
-/// items, in file order). Returns the transaction's exact leaf bytes
-/// alongside the witness — ship both, feed them to
-/// [`recompute_block_root`], and the result is the network-signed block
-/// root.
+/// items, in file order). Returns the transaction's exact `input_tree`
+/// leaf bytes — the serialized `BlockItem` as it appears in the file,
+/// not the inner `SignedTransaction` — alongside the witness. Ship both,
+/// feed them to [`recompute_block_root`], and the result is the
+/// network-signed block root.
 pub fn block_inclusion_witness(
     bytes: &[u8],
     transaction_index: usize,
@@ -450,7 +453,10 @@ pub fn block_inclusion_witness(
             ))
         })?
         .to_vec();
-    let input_witness = witness_for(&input_leaves, transaction_index);
+    let input_witness = witness_for(&input_leaves, transaction_index).expect(
+        "input_leaves and input_item_bytes grow together, so the get() check above \
+         guarantees transaction_index is in range",
+    );
 
     let state_root = if footer.start_of_block_state_root_hash.is_empty() {
         [0u8; HASH_LENGTH]
@@ -479,10 +485,12 @@ pub fn block_inclusion_witness(
 }
 
 /// Recompute the block merkle root from one transaction's leaf bytes and
-/// its [`BlockInclusionWitness`]. Folds the `input_tree` witness, then
-/// rebuilds the block's fixed upper tree exactly as
-/// [`extract_proof_material`] does. The result is the message the hinTS
-/// threshold signature signs, ready for `verify_block_proof`.
+/// its [`BlockInclusionWitness`]. `tx_bytes` must be exactly the bytes
+/// [`block_inclusion_witness`] returned — the serialized `BlockItem` that
+/// forms the `input_tree` leaf, not the inner `SignedTransaction`. Folds
+/// the `input_tree` witness, then rebuilds the block's fixed upper tree
+/// exactly as [`extract_proof_material`] does. The result is the message
+/// the hinTS threshold signature signs, ready for `verify_block_proof`.
 pub fn recompute_block_root(tx_bytes: &[u8], w: &BlockInclusionWitness) -> [u8; 48] {
     let input_root = fold_witness(hash_leaf(tx_bytes), &w.input_witness);
 

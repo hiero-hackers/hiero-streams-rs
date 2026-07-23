@@ -43,7 +43,7 @@ fn generic_witnesses_fold_to_the_root() {
         let leaves: Vec<[u8; 48]> = (0..n as u64).map(leaf_hash).collect();
         let root = merkle_root(&leaves);
         for i in 0..n {
-            let w = witness_for(&leaves, i);
+            let w = witness_for(&leaves, i).expect("index in range");
             assert_eq!(fold_witness(leaves[i], &w), root, "count {n}, index {i}");
         }
     }
