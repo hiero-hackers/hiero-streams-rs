@@ -8,6 +8,7 @@
 //! hashing and hands the same bytes to prost when a typed view is
 //! needed (header, footer, proof, signed transaction).
 
+use super::merkle::{fold_witness, witness_for, MerkleWitness};
 use super::merkle::{
     hash_internal, hash_internal_single_child, hash_leaf, StreamingTreeHasher, HASH_LENGTH,
 };
@@ -111,6 +112,39 @@ pub struct BlockChainInfo {
     /// genesis block, and it MUST equal the previous block's recomputed
     /// root everywhere else
     pub previous_block_root: Vec<u8>,
+}
+
+/// An inclusion witness for one signed transaction within a block: the
+/// merkle path up the `input_tree`, plus the sibling hashes needed to
+/// climb the block's fixed upper tree to the block root. Ship this and
+/// the transaction's own bytes to prove — in about a dozen hashes — that
+/// the transaction is in a block whose root the network has signed,
+/// without shipping the block.
+///
+/// Feed it to [`recompute_block_root`], then hand the result to
+/// `verify_block_proof` against the resolved bootstrap.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct BlockInclusionWitness {
+    /// Path from the transaction leaf to the `input_tree` root.
+    pub input_witness: MerkleWitness,
+    /// Root of the `output_tree` (sibling of `input_tree`).
+    pub output_root: [u8; 48],
+    /// Root of the `consensus_tree`.
+    pub consensus_root: [u8; 48],
+    /// Root of the `state_changes_tree`.
+    pub state_changes_root: [u8; 48],
+    /// Root of the `trace_tree`.
+    pub trace_root: [u8; 48],
+    /// Start-of-block state root hash (zero-filled when absent), paired
+    /// with the consensus root.
+    pub state_root: [u8; 48],
+    /// The footer's previous-block-root hash.
+    pub previous_block_root: [u8; 48],
+    /// The footer's root hash of the all-block-hashes tree.
+    pub root_hash_of_all_block_hashes_tree: [u8; 48],
+    /// The block header's encoded timestamp bytes (the top-level leaf).
+    pub timestamp_bytes: Vec<u8>,
 }
 
 // ─── Extraction ─────────────────────────────────────────────────────────────
@@ -330,4 +364,138 @@ fn signed_block_signature(proof: &BlockProof) -> Option<Vec<u8>> {
         Some(Proof::SignedBlockProof(signed)) => Some(signed.block_signature.clone()),
         _ => None,
     }
+}
+
+// ─── Inclusion witnesses ────────────────────────────────────────────────────
+
+fn to_hash48(bytes: &[u8]) -> Result<[u8; 48], Error> {
+    <[u8; HASH_LENGTH]>::try_from(bytes).map_err(|_| {
+        Error::Proof(format!(
+            "expected a {HASH_LENGTH}-byte hash, got {}",
+            bytes.len()
+        ))
+    })
+}
+
+/// Build an inclusion witness for the signed transaction at
+/// `transaction_index` (0-based over the block's `SignedTransaction`
+/// items, in file order). Returns the transaction's exact leaf bytes
+/// alongside the witness — ship both, feed them to
+/// [`recompute_block_root`], and the result is the network-signed block
+/// root.
+pub fn block_inclusion_witness(
+    bytes: &[u8],
+    transaction_index: usize,
+) -> Result<(Vec<u8>, BlockInclusionWitness), Error> {
+    let raw = inflate(bytes)?;
+    let items = scan_block_items(&raw)?;
+
+    let mut header: Option<BlockHeader> = None;
+    let mut footer: Option<BlockFooter> = None;
+
+    let mut input_leaves: Vec<[u8; 48]> = Vec::new();
+    let mut input_item_bytes: Vec<&[u8]> = Vec::new();
+    let mut output_tree = StreamingTreeHasher::default();
+    let mut consensus_tree = StreamingTreeHasher::default();
+    let mut state_changes_tree = StreamingTreeHasher::default();
+    let mut trace_tree = StreamingTreeHasher::default();
+
+    for item in &items {
+        match item.field_number {
+            F_BLOCK_HEADER | F_TRANSACTION_RESULT | F_TRANSACTION_OUTPUT => {
+                output_tree.add_leaf(hash_leaf(item.item_bytes));
+            }
+            F_EVENT_HEADER | F_ROUND_HEADER => {
+                consensus_tree.add_leaf(hash_leaf(item.item_bytes));
+            }
+            F_SIGNED_TRANSACTION => {
+                input_leaves.push(hash_leaf(item.item_bytes));
+                input_item_bytes.push(item.item_bytes);
+            }
+            F_STATE_CHANGES => {
+                state_changes_tree.add_leaf(hash_leaf(item.item_bytes));
+            }
+            F_TRACE_DATA => {
+                trace_tree.add_leaf(hash_leaf(item.item_bytes));
+            }
+            F_BLOCK_PROOF | F_BLOCK_FOOTER | F_RECORD_FILE => {}
+            F_FILTERED_SINGLE_ITEM | F_REDACTED_ITEM => {
+                return Err(Error::Proof(
+                    "filtered/redacted block items are not supported".into(),
+                ));
+            }
+            other => {
+                return Err(Error::Proof(format!("unknown BlockItem field {other}")));
+            }
+        }
+
+        if matches!(item.field_number, F_BLOCK_HEADER | F_BLOCK_FOOTER) {
+            match BlockItem::decode(item.item_bytes)?.item {
+                Some(Item::BlockHeader(h)) => header = Some(h),
+                Some(Item::BlockFooter(f)) => footer = Some(f),
+                _ => {}
+            }
+        }
+    }
+
+    let header = header.ok_or_else(|| Error::Proof("block header missing".into()))?;
+    let footer = footer.ok_or_else(|| Error::Proof("block footer missing".into()))?;
+
+    let tx_bytes = input_item_bytes
+        .get(transaction_index)
+        .ok_or_else(|| {
+            Error::Proof(format!(
+                "transaction index {transaction_index} out of range ({} signed transactions)",
+                input_item_bytes.len()
+            ))
+        })?
+        .to_vec();
+    let input_witness = witness_for(&input_leaves, transaction_index);
+
+    let state_root = if footer.start_of_block_state_root_hash.is_empty() {
+        [0u8; HASH_LENGTH]
+    } else {
+        to_hash48(&footer.start_of_block_state_root_hash)?
+    };
+    let timestamp_bytes = header
+        .block_timestamp
+        .as_ref()
+        .map(Message::encode_to_vec)
+        .unwrap_or_default();
+
+    let witness = BlockInclusionWitness {
+        input_witness,
+        output_root: output_tree.root(),
+        consensus_root: consensus_tree.root(),
+        state_changes_root: state_changes_tree.root(),
+        trace_root: trace_tree.root(),
+        state_root,
+        previous_block_root: to_hash48(&footer.previous_block_root_hash)?,
+        root_hash_of_all_block_hashes_tree: to_hash48(&footer.root_hash_of_all_block_hashes_tree)?,
+        timestamp_bytes,
+    };
+
+    Ok((tx_bytes, witness))
+}
+
+/// Recompute the block merkle root from one transaction's leaf bytes and
+/// its [`BlockInclusionWitness`]. Folds the `input_tree` witness, then
+/// rebuilds the block's fixed upper tree exactly as
+/// [`extract_proof_material`] does. The result is the message the hinTS
+/// threshold signature signs, ready for `verify_block_proof`.
+pub fn recompute_block_root(tx_bytes: &[u8], w: &BlockInclusionWitness) -> [u8; 48] {
+    let input_root = fold_witness(hash_leaf(tx_bytes), &w.input_witness);
+
+    let depth5_1 = hash_internal(
+        &w.previous_block_root,
+        &w.root_hash_of_all_block_hashes_tree,
+    );
+    let depth5_2 = hash_internal(&w.state_root, &w.consensus_root);
+    let depth5_3 = hash_internal(&input_root, &w.output_root);
+    let depth5_4 = hash_internal(&w.state_changes_root, &w.trace_root);
+    let depth4_1 = hash_internal(&depth5_1, &depth5_2);
+    let depth4_2 = hash_internal(&depth5_3, &depth5_4);
+    let fixed_root = hash_internal_single_child(&hash_internal(&depth4_1, &depth4_2));
+
+    hash_internal(&hash_leaf(&w.timestamp_bytes), &fixed_root)
 }

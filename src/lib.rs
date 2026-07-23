@@ -190,7 +190,9 @@ pub use block::material::{
     block_chain_info, extract_proof_material, resolve_bootstrap, BlockChainInfo,
     BlockProofMaterial, Bootstrap, NodeContribution, ProofLayout, ProofPath,
 };
+pub use block::material::{block_inclusion_witness, recompute_block_root, BlockInclusionWitness};
 pub use block::{block_activity, parse_block, BlockActivity, ParsedBlock};
+pub use block::{fold_witness, merkle_root, witness_for, MerkleWitness, Side};
 
 // Block-stream era: proof verification (behind `block-proofs`).
 #[cfg(feature = "block-proofs")]
