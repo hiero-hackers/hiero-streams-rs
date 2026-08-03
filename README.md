@@ -201,7 +201,7 @@ WASM remain on the roadmap.
 
 ## Requirements & Google Cloud setup
 
-The library and offline verification need only **Rust 1.82+** (the
+The library and offline verification need only **Rust 1.86+** (the
 `rust-version` in `Cargo.toml`, enforced by CI) and **protoc**
 (`brew install protobuf`). Anything touching the public
 stream buckets (`attest`, downloads for `etl`) additionally needs a

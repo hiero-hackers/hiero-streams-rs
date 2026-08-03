@@ -9,7 +9,7 @@ anchor*.
 
 Prerequisites:
 
-- **Rust 1.82+** (the crate's MSRV, in `Cargo.toml` / enforced by CI)
+- **Rust 1.86+** (the crate's MSRV, in `Cargo.toml` / enforced by CI)
 - **protoc** — `brew install protobuf` / `apt-get install protobuf-compiler`
 
 Build and test across the feature matrix CI uses:
