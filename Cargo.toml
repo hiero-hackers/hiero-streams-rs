@@ -5,9 +5,11 @@ members = [".", "bindings/node"]
 name = "hiero-streams"
 version = "0.3.0"
 edition = "2021"
-# Option::is_none_or (1.82) is the newest std API used; checked by CI's msrv
-# job and clippy's incompatible_msrv lint.
-rust-version = "1.82"
+# Floor is the dependency tree, not our own code (newest std API used is
+# Option::is_none_or, 1.82): the ecosystem has moved to edition-2024 manifests,
+# which need cargo 1.85+, and icu_* 2.2 (via ureq -> url -> idna) needs 1.86.
+# Checked by CI's msrv job and clippy's incompatible_msrv lint.
+rust-version = "1.86"
 license = "Apache-2.0"
 description = "Parse and cryptographically verify Hedera consensus streams: v6 record files and HIP-1056 block streams, including in-band TSS block proofs"
 repository = "https://github.com/hiero-hackers/hiero-streams-rs"

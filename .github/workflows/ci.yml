@@ -55,7 +55,12 @@ jobs:
                   persist-credentials: false
             - name: Install protoc
               run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
-            - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # 1.82
+            # Pinning by SHA loses the action's ref-based toolchain selection
+            # (the "@1.86" ref WAS the selector) — say it explicitly, or the
+            # runner gets stable and this job silently stops testing the MSRV.
+            - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # 1.86
+              with:
+                  toolchain: "1.86"
             - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
             - run: cargo check --all-features
 

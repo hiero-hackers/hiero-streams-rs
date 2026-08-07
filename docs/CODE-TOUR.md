@@ -202,7 +202,7 @@ Generated `index.js`/`index.d.ts`/`*.node` are gitignored on purpose.
 - Pairings are slow in debug builds — run proof tests with `--release`.
 - `fuzz/` is a detached cargo workspace (cargo-fuzz convention): it
   doesn't build with the main workspace, and needs nightly to *run*.
-- MSRV is 1.82 (`rust-version` in Cargo.toml, enforced by CI's msrv job
+- MSRV is 1.86 (`rust-version` in Cargo.toml, enforced by CI's msrv job
   and clippy's `incompatible_msrv` lint).
 - `cargo doc` builds with `-D warnings` in CI and doctest is off —
   doc comments are checked for link validity but never executed.
